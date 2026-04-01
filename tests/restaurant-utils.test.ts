@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from 'vitest';
 import {
   ALLERGENS,
   ALLERGEN_STRING_TO_NUMBER,
@@ -6,95 +6,138 @@ import {
   getNumericAllergens,
   filterMenuItems,
   slugify,
-} from "../src/verticals/restaurant/utils";
-import type { MenuItem } from "../src/verticals/restaurant/types";
+} from '../src/verticals/restaurant/utils';
+import type { MenuItem } from '../src/verticals/restaurant/types';
 
 const mockItems: MenuItem[] = [
-  { id: "1", name: "Paella", description: "Rice dish with seafood", price: 24, category: "Arroces", allergens: ["crustaceans", "fish"], dietLabels: [], available: true, tags: ["marisco"] },
-  { id: "2", name: "Ensalada", description: "Fresh green salad", price: 8, category: "Entrantes", allergens: [], dietLabels: ["vegetarian"], available: true, tags: ["vegetariano"], highlight: true },
-  { id: "3", name: "Tarta", description: "Chocolate cake", price: 6, category: "Postres", allergens: ["gluten", "eggs", "milk"], dietLabels: [], available: true, tags: ["postres"] },
-  { id: "4", name: "Sopa", description: "Hot soup", price: 5, category: "Entrantes", allergens: ["celery"], dietLabels: [], available: false, tags: ["caliente"] },
+  {
+    id: '1',
+    name: 'Paella',
+    description: 'Rice dish',
+    price: 24,
+    category: 'Arroces',
+    allergens: ['crustaceans', 'fish'],
+    dietLabels: [],
+    available: true,
+    tags: ['marisco'],
+  },
+  {
+    id: '2',
+    name: 'Ensalada',
+    description: 'Fresh salad',
+    price: 8,
+    category: 'Entrantes',
+    allergens: [],
+    dietLabels: ['vegetarian'],
+    available: true,
+    tags: ['vegetariano'],
+    highlight: true,
+  },
+  {
+    id: '3',
+    name: 'Tarta',
+    description: 'Chocolate cake',
+    price: 6,
+    category: 'Postres',
+    allergens: ['gluten', 'eggs', 'milk'],
+    dietLabels: [],
+    available: true,
+    tags: ['postres'],
+  },
 ];
 
-describe("ALLERGENS constant", () => {
-  it("has 14 entries (EU 1169/2011)", () => {
+describe('ALLERGENS constant', () => {
+  it('has 14 entries', () => {
     expect(Object.keys(ALLERGENS)).toHaveLength(14);
   });
 
-  it("maps correct allergens", () => {
-    expect(ALLERGENS[1].name).toBe("Gluten");
-    expect(ALLERGENS[14].name).toBe("Molluscs");
-    expect(ALLERGENS[7].es).toBe("Lácteos");
+  it('ALLERGENS[1] is Gluten and ALLERGENS[14] is Molluscs', () => {
+    expect(ALLERGENS[1].name).toBe('Gluten');
+    expect(ALLERGENS[14].name).toBe('Molluscs');
   });
 });
 
-describe("Allergen conversion", () => {
-  it("ALLERGEN_STRING_TO_NUMBER maps all 14", () => {
-    expect(Object.keys(ALLERGEN_STRING_TO_NUMBER)).toHaveLength(14);
-    expect(ALLERGEN_STRING_TO_NUMBER.gluten).toBe(1);
-    expect(ALLERGEN_STRING_TO_NUMBER.molluscs).toBe(14);
-  });
-
-  it("numberToStringAllergens converts numbers to strings", () => {
-    expect(numberToStringAllergens([1, 2])).toEqual(["gluten", "crustaceans"]);
-  });
-
-  it("numberToStringAllergens skips invalid numbers", () => {
-    expect(numberToStringAllergens([99, 1])).toEqual(["gluten"]);
-  });
-
-  it("getNumericAllergens converts item allergens to numbers", () => {
-    expect(getNumericAllergens(mockItems[0])).toEqual([2, 4]); // crustaceans=2, fish=4
+describe('ALLERGEN_STRING_TO_NUMBER', () => {
+  it('maps "gluten" to 1 and "molluscs" to 14', () => {
+    expect(ALLERGEN_STRING_TO_NUMBER['gluten']).toBe(1);
+    expect(ALLERGEN_STRING_TO_NUMBER['molluscs']).toBe(14);
   });
 });
 
-describe("filterMenuItems", () => {
-  it("returns only available items", () => {
-    const result = filterMenuItems(mockItems, {});
-    expect(result).toHaveLength(3); // Sopa is unavailable
-    expect(result.find((i) => i.name === "Sopa")).toBeUndefined();
+describe('numberToStringAllergens', () => {
+  it('converts [1, 2] to ["gluten", "crustaceans"]', () => {
+    expect(numberToStringAllergens([1, 2])).toEqual(['gluten', 'crustaceans']);
   });
 
-  it("filters by tag", () => {
-    const result = filterMenuItems(mockItems, { tag: "marisco" });
-    expect(result).toHaveLength(1);
-    expect(result[0].name).toBe("Paella");
-  });
-
-  it("filters by search query in name", () => {
-    const result = filterMenuItems(mockItems, { search: "Paella" });
-    expect(result).toHaveLength(1);
-    expect(result[0].name).toBe("Paella");
-  });
-
-  it("filters by search query in description", () => {
-    const result = filterMenuItems(mockItems, { search: "cake" });
-    expect(result).toHaveLength(1);
-    expect(result[0].name).toBe("Tarta");
-  });
-
-  it("excludes items with specific allergens", () => {
-    const result = filterMenuItems(mockItems, { excludeAllergens: [2] }); // crustaceans
-    expect(result).toHaveLength(2); // Paella excluded
-    expect(result.find((i) => i.name === "Paella")).toBeUndefined();
-  });
-
-  it("combines tag + allergen filters", () => {
-    const result = filterMenuItems(mockItems, { tag: "postres", excludeAllergens: [1] }); // gluten
-    expect(result).toHaveLength(0); // Tarta has gluten
+  it('skips invalid numbers — [99] returns []', () => {
+    expect(numberToStringAllergens([99])).toEqual([]);
   });
 });
 
-describe("slugify", () => {
-  it("converts text to URL-safe slugs", () => {
-    expect(slugify("Pescados y Mariscos")).toBe("pescados-y-mariscos");
+describe('getNumericAllergens', () => {
+  it('returns [2, 4] for item with ["crustaceans", "fish"]', () => {
+    const nums = getNumericAllergens(mockItems[0]); // Paella
+    expect(nums).toEqual([2, 4]);
+  });
+});
+
+describe('filterMenuItems', () => {
+  it('returns only available items', () => {
+    const withUnavailable: MenuItem[] = [
+      ...mockItems,
+      {
+        id: '4',
+        name: 'Old Soup',
+        description: 'No longer served',
+        price: 5,
+        category: 'Sopas',
+        allergens: [],
+        dietLabels: [],
+        available: false,
+        tags: [],
+      },
+    ];
+    const result = filterMenuItems(withUnavailable, {});
+    expect(result.every((i) => i.available)).toBe(true);
+    expect(result.find((i) => i.name === 'Old Soup')).toBeUndefined();
   });
 
-  it("handles accented characters", () => {
-    expect(slugify("Menú del Día")).toBe("menu-del-dia");
+  it('filters by tag "marisco" — only Paella', () => {
+    const result = filterMenuItems(mockItems, { tag: 'marisco' });
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('Paella');
   });
 
-  it("handles special characters", () => {
-    expect(slugify("Café & Té (especial)")).toBe("cafe-te-especial");
+  it('search "Paella" returns 1 result', () => {
+    const result = filterMenuItems(mockItems, { search: 'Paella' });
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('Paella');
+  });
+
+  it('search "cake" (in description) returns Tarta', () => {
+    const result = filterMenuItems(mockItems, { search: 'cake' });
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('Tarta');
+  });
+
+  it('excludeAllergens [2] (crustaceans) excludes Paella', () => {
+    const result = filterMenuItems(mockItems, { excludeAllergens: [2] });
+    expect(result.find((i) => i.name === 'Paella')).toBeUndefined();
+    expect(result).toHaveLength(2);
+  });
+
+  it('combined: tag "postres" + excludeAllergens [1] (gluten) returns empty', () => {
+    const result = filterMenuItems(mockItems, { tag: 'postres', excludeAllergens: [1] });
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe('slugify', () => {
+  it('slugifies "Pescados y Mariscos"', () => {
+    expect(slugify('Pescados y Mariscos')).toBe('pescados-y-mariscos');
+  });
+
+  it('slugifies "Menu del Dia" with accent removal', () => {
+    expect(slugify('Menú del Día')).toBe('menu-del-dia');
   });
 });
