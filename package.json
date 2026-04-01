@@ -9,13 +9,22 @@
     "./provider": "./src/provider.tsx",
     "./verticals/restaurant": "./src/verticals/restaurant/index.ts"
   },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
   "peerDependencies": {
     "react": ">=18.0.0"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^18.3.0",
+    "jsdom": "^29.0.1",
     "typescript": "^5.0.0",
-    "@types/react": "^18.3.0"
+    "vitest": "^4.1.2"
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "license": "MIT"
 }
