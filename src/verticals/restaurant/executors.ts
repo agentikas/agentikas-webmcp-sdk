@@ -24,7 +24,7 @@ export const restaurantExecutors: ExecutorMap<RestaurantData> = {
         type: "text" as const,
         text: `# ${restaurant.name}\n\n${restaurant.description}\n\n` +
           `## Direccion\n${restaurant.address.streetAddress}, ${restaurant.address.postalCode} ${restaurant.address.locality}\n\n` +
-          `## Contacto\nTelefono: ${restaurant.contact.phone}\nWhatsApp: ${restaurant.contact.whatsapp}\n\n` +
+          `## Contacto\nTelefono: ${restaurant.contact.phone}${restaurant.contact.whatsapp ? `\nWhatsApp: ${restaurant.contact.whatsapp}` : ""}\n\n` +
           `## Horario\n${hours}\n\n` +
           `## Cocina\n${restaurant.cuisine.join(", ")}\n\n` +
           `## Precio medio\n${restaurant.priceRange}\n\n` +

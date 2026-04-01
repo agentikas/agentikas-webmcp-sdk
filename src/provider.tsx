@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import type { ToolDefinition, AgentikasConfig } from "./types";
 import { getExecutors } from "./registry";
-import { trackToolCall } from "./telemetry";
+import { buildExecutableTools } from "./wrap-executor";
 
 interface WebMCPProviderProps {
   config: AgentikasConfig;
@@ -29,44 +29,7 @@ export function WebMCPProvider({ config, data, tools }: WebMCPProviderProps) {
       return;
     }
 
-    const executableTools = tools
-      .map((tool) => {
-        const executorFactory = executorMap[tool.name];
-        if (!executorFactory) {
-          if (config.debug) {
-            console.warn(`[Agentikas] No executor for tool "${tool.name}"`);
-          }
-          return null;
-        }
-        try {
-          const rawExecute = executorFactory(data);
-
-          // Wrap executor with GA4 telemetry
-          const execute = (args: any) => {
-            const start = performance.now();
-            try {
-              const result = rawExecute(args);
-              trackToolCall(tool.name, "success", performance.now() - start, config.vertical, config.platform);
-              return result;
-            } catch (err) {
-              trackToolCall(tool.name, "error", performance.now() - start, config.vertical, config.platform);
-              throw err;
-            }
-          };
-
-          return {
-            name: tool.name,
-            description: tool.description,
-            inputSchema: tool.input_schema,
-            execute,
-          };
-        } catch (err) {
-          console.error(`[Agentikas] Error creating executor for "${tool.name}":`, err);
-          return null;
-        }
-      })
-      .filter(Boolean);
-
+    const executableTools = buildExecutableTools(tools, executorMap, data, config);
     modelContext.provideContext({ tools: executableTools });
 
     if (config.debug) {
