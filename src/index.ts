@@ -20,6 +20,9 @@ export { registerVertical, registerPlatform, buildTools, getExecutors, hasVertic
 // Detection
 export { detectPlatform, registerDetectionRule } from "./detect";
 
+// Telemetry
+export { trackToolCall } from "./telemetry";
+
 // Provider (also available via @agentikas/webmcp-sdk/provider)
 export { WebMCPProvider } from "./provider";
 

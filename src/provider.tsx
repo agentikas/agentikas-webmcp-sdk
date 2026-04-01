@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import type { ToolDefinition, AgentikasConfig } from "./types";
 import { getExecutors } from "./registry";
+import { trackToolCall } from "./telemetry";
 
 interface WebMCPProviderProps {
   config: AgentikasConfig;
@@ -10,12 +11,6 @@ interface WebMCPProviderProps {
   tools: ToolDefinition[];
 }
 
-/**
- * WebMCP Provider — Generic, vertical/platform-agnostic.
- *
- * Looks up executors by vertical + platform, combines them with
- * tool definitions, and registers everything in navigator.modelContext.
- */
 export function WebMCPProvider({ config, data, tools }: WebMCPProviderProps) {
   useEffect(() => {
     if (!("modelContext" in window.navigator)) return;
@@ -44,7 +39,21 @@ export function WebMCPProvider({ config, data, tools }: WebMCPProviderProps) {
           return null;
         }
         try {
-          const execute = executorFactory(data);
+          const rawExecute = executorFactory(data);
+
+          // Wrap executor with GA4 telemetry
+          const execute = (args: any) => {
+            const start = performance.now();
+            try {
+              const result = rawExecute(args);
+              trackToolCall(tool.name, "success", performance.now() - start, config.vertical, config.platform);
+              return result;
+            } catch (err) {
+              trackToolCall(tool.name, "error", performance.now() - start, config.vertical, config.platform);
+              throw err;
+            }
+          };
+
           return {
             name: tool.name,
             description: tool.description,
