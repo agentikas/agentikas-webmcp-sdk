@@ -91,10 +91,15 @@ function init() {
 
   const executableTools = buildExecutableTools(tools, executorMap, data, config);
 
-  if ("modelContext" in navigator) {
-    (navigator as any).modelContext.provideContext({ tools: executableTools });
+  // Always expose tools on window (for testing + extensions)
+  (window as any).__agentikas_tools = executableTools;
+
+  // Register in navigator.modelContext if fully supported
+  const mc = (navigator as any).modelContext;
+  if (mc && typeof mc.provideContext === "function") {
+    mc.provideContext({ tools: executableTools });
   } else {
-    (window as any).__agentikas_tools = executableTools;
+    // Fallback: JSON-LD metadata for crawlers
     injectJsonLdFallback(config, tools);
   }
 
