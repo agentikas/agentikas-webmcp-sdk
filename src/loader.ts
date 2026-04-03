@@ -1,7 +1,11 @@
 // @agentikas/webmcp-sdk — Standalone loader
 // Entry point for webmcp.js (loaded via <script async>).
-// Reads window.__agentikas_config and window.__agentikas_data,
-// detects the platform, builds tools, and registers in navigator.modelContext.
+//
+// Event-based initialization:
+//   1. Script loads async (in parallel with page rendering)
+//   2. Listens for 'agentikas:data-ready' event OR checks if data already set
+//   3. Initializes tools + registers in navigator.modelContext
+//   4. Emits 'agentikas:ready' when done
 
 import { registerVertical, buildTools, getExecutors, registerPlatform } from "./registry";
 import { detectPlatform, registerDetectionRule } from "./detect";
@@ -45,14 +49,17 @@ registerDetectionRule({
   },
 });
 
-// ── Main ───────────────────────────────────────────────────────
+// ── Initialization ─────────────────────────────────────────────
 
-function main() {
+let initialized = false;
+
+function init() {
+  if (initialized) return;
+
   const config = window.__agentikas_config;
-  if (!config) {
-    console.error("[Agentikas] No window.__agentikas_config found.");
-    return;
-  }
+  if (!config) return; // Data not ready yet, wait for event
+
+  initialized = true;
 
   if (!config.businessId || !config.vertical) {
     console.error("[Agentikas] Config requires businessId and vertical.");
@@ -66,7 +73,6 @@ function main() {
   if (config.debug) {
     console.log("[Agentikas] Config:", config);
     console.log("[Agentikas] Platform:", config.platform);
-    console.log("[Agentikas] Data preloaded:", !!window.__agentikas_data);
   }
 
   const data = window.__agentikas_data ?? {};
@@ -122,8 +128,25 @@ function injectJsonLdFallback(config: AgentikasConfig, tools: { name: string; de
   document.head.appendChild(script);
 }
 
+// ── Boot: event-driven, non-blocking ───────────────────────────
+// Three scenarios, all handled:
+//
+// 1. Data already in window (inline script ran before us) → init immediately
+// 2. Data not yet available → listen for 'agentikas:data-ready' event
+// 3. GTM/third-party: no data, platform APIs used → init on DOMContentLoaded
+
+// Try immediately (scenario 1)
+if (window.__agentikas_config) {
+  init();
+}
+
+// Listen for data-ready event (scenario 2: script loaded before inline data)
+window.addEventListener("agentikas:data-ready", init);
+
+// Fallback: try on DOMContentLoaded (scenario 3: GTM, no preloaded data)
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", main);
-} else {
-  main();
+  document.addEventListener("DOMContentLoaded", init);
+} else if (!initialized) {
+  // DOM already ready but config might come from GTM (slight delay)
+  setTimeout(init, 0);
 }
