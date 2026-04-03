@@ -94,18 +94,29 @@ function init() {
   // Always expose tools on window (for testing + extensions)
   (window as any).__agentikas_tools = executableTools;
 
-  // Register in navigator.modelContext if fully supported
+  // Register in navigator.modelContext (WebMCP browser API)
   const mc = (navigator as any).modelContext;
-  if (mc && typeof mc.provideContext === "function") {
-    mc.provideContext({ tools: executableTools });
-  } else {
-    // Fallback: JSON-LD metadata for crawlers
+  let registeredIn = "window.__agentikas_tools";
+
+  if (mc && typeof mc.registerTool === "function") {
+    try {
+      for (const tool of executableTools) {
+        mc.registerTool(tool);
+      }
+      registeredIn = "navigator.modelContext + window.__agentikas_tools";
+    } catch (err) {
+      console.warn("[Agentikas] modelContext.registerTool() failed:", err);
+    }
+  }
+
+  if (registeredIn === "window.__agentikas_tools") {
     injectJsonLdFallback(config, tools);
   }
 
-  if (config.debug) {
-    console.log(`[Agentikas] ✓ ${executableTools.length} tools registered`);
-  }
+  console.log(
+    `[Agentikas] ✓ ${executableTools.length} tools registered in ${registeredIn}:`,
+    executableTools.map((t) => t.name),
+  );
 
   window.dispatchEvent(
     new CustomEvent("agentikas:ready", {
