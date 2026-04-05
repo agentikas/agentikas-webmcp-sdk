@@ -8,4 +8,4 @@ export type { Product, RetailData } from "./types";
 export { shopifyRetailPlatform, normalizeShopifyProduct, detectShopifyCurrency } from "./platforms/shopify";
 export { woocommerceRetailPlatform, normalizeWooProduct } from "./platforms/woocommerce";
 export { adobeRetailPlatform, normalizeAdobeProduct, detectAdobeCurrency } from "./platforms/adobe";
-export { adobeEdsRetailPlatform, normalizeCatalogProduct } from "./platforms/adobe-eds";
+export { adobeEdsRetailPlatform, normalizeEdsSearchItem } from "./platforms/adobe-eds";

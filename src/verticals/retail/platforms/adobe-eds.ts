@@ -7,28 +7,34 @@ import type { Product, RetailData } from "../types";
 
 // ── EDS GraphQL response types ─────────────────────────────────
 
-// Catalog Service ProductView (union of SimpleProductView + ComplexProductView)
-export interface EdsProductViewFull {
-  name: string;
+// Commerce core "product" fragment (price_range, small_image)
+export interface EdsProduct {
+  __typename?: string;
   sku: string;
-  urlKey?: string;
-  description?: string;
-  shortDescription?: string;
-  // SimpleProductView
-  price?: {
-    regular?: { amount?: { value: number; currency: string } };
-    final?: { amount?: { value: number; currency: string } };
-  };
-  // ComplexProductView
-  priceRange?: {
-    minimum?: {
-      regular?: { amount?: { value: number; currency: string } };
-      final?: { amount?: { value: number; currency: string } };
+  name: string;
+  small_image?: { url: string };
+  image?: { url: string };
+  price_range?: {
+    minimum_price?: {
+      regular_price?: { value: number; currency: string };
+      final_price?: { value: number; currency: string };
     };
   };
-  images?: Array<{ url: string; label?: string }>;
-  attributes?: Array<{ name: string; value: string }>;
+}
+
+// Catalog Service "productView" fragment (inStock, attributes)
+export interface EdsProductView {
+  urlKey?: string;
   inStock?: boolean;
+  description?: string;
+  shortDescription?: string;
+  attributes?: Array<{ name: string; value: string }>;
+}
+
+// Combined search result item
+export interface EdsSearchItem {
+  product: EdsProduct;
+  productView?: EdsProductView;
 }
 
 // ── Official Adobe Commerce endpoints (documented) ─────────────
@@ -151,26 +157,32 @@ function buildHeaders(merchant: MerchantConfig): Record<string, string> {
 
 // ── GraphQL queries ────────────────────────────────────────────
 
-// Queries use Catalog Service schema (CORS-friendly: access-control-allow-origin: *)
-// ProductView is a union: SimpleProductView (price) | ComplexProductView (priceRange)
+// Queries use the "product" field (Commerce core schema) + "productView" for stock/attributes.
+// Same pattern as the EDS storefront's LiveSearchAutocomplete.
+// Requires filter (visibility) + context (customerGroup) to return results.
+
 const SEARCH_QUERY = `
-  query productSearch($phrase: String!, $pageSize: Int) {
-    productSearch(phrase: $phrase, page_size: $pageSize) {
+  query productSearch($phrase: String!, $pageSize: Int, $filter: [SearchClauseInput!], $context: QueryContextInput) {
+    productSearch(phrase: $phrase, page_size: $pageSize, filter: $filter, context: $context) {
       items {
-        productView {
-          name
+        product {
+          __typename
           sku
+          name
+          small_image { url }
+          image { url }
+          price_range {
+            minimum_price {
+              regular_price { value currency }
+              final_price { value currency }
+            }
+          }
+        }
+        productView {
           urlKey
-          shortDescription
-          images(roles: ["image"]) { url label }
-          attributes(roles: ["visible_in_storefront"]) { name value }
           inStock
-          ... on SimpleProductView {
-            price { regular { amount { value currency } } final { amount { value currency } } }
-          }
-          ... on ComplexProductView {
-            priceRange { minimum { regular { amount { value currency } } final { amount { value currency } } } }
-          }
+          shortDescription
+          attributes(roles: ["visible_in_storefront"]) { name value }
         }
       }
       total_count
@@ -179,21 +191,29 @@ const SEARCH_QUERY = `
 `;
 
 const PRODUCT_BY_SKU_QUERY = `
-  query products($skus: [String!]!) {
-    products(skus: $skus) {
-      name
-      sku
-      urlKey
-      description
-      shortDescription
-      images(roles: ["image"]) { url label }
-      attributes(roles: ["visible_in_storefront"]) { name value }
-      inStock
-      ... on SimpleProductView {
-        price { regular { amount { value currency } } final { amount { value currency } } }
-      }
-      ... on ComplexProductView {
-        priceRange { minimum { regular { amount { value currency } } final { amount { value currency } } } }
+  query productSearch($phrase: String!, $filter: [SearchClauseInput!], $context: QueryContextInput) {
+    productSearch(phrase: $phrase, page_size: 1, filter: $filter, context: $context) {
+      items {
+        product {
+          __typename
+          sku
+          name
+          small_image { url }
+          image { url }
+          price_range {
+            minimum_price {
+              regular_price { value currency }
+              final_price { value currency }
+            }
+          }
+        }
+        productView {
+          urlKey
+          inStock
+          description
+          shortDescription
+          attributes(roles: ["visible_in_storefront"]) { name value }
+        }
       }
     }
   }
@@ -232,29 +252,27 @@ async function gqlFetch<T>(query: string, variables: Record<string, any>): Promi
 
 // ── Normalizer ─────────────────────────────────────────────────
 
-export function normalizeCatalogProduct(raw: EdsProductViewFull): Product {
-  const sizeAttr = raw.attributes?.find(
+export function normalizeEdsSearchItem(item: EdsSearchItem): Product {
+  const p = item.product;
+  const v = item.productView;
+
+  const sizeAttr = v?.attributes?.find(
     (a) => a.name.toLowerCase() === "size" || a.name.toLowerCase() === "talla",
   );
-  const colorAttr = raw.attributes?.find(
+  const colorAttr = v?.attributes?.find(
     (a) => a.name.toLowerCase() === "color" || a.name.toLowerCase() === "colour",
   );
 
-  // SimpleProductView has price, ComplexProductView has priceRange
-  const finalPrice = raw.price?.final?.amount?.value ?? raw.priceRange?.minimum?.final?.amount?.value;
-  const regularPrice = raw.price?.regular?.amount?.value ?? raw.priceRange?.minimum?.regular?.amount?.value;
-  const currency = raw.price?.regular?.amount?.currency ?? raw.priceRange?.minimum?.regular?.amount?.currency ?? "USD";
-
   return {
-    id: raw.sku,
-    name: raw.name,
-    price: finalPrice ?? regularPrice ?? 0,
-    currency,
+    id: p.sku,
+    name: p.name,
+    price: p.price_range?.minimum_price?.final_price?.value ?? p.price_range?.minimum_price?.regular_price?.value ?? 0,
+    currency: p.price_range?.minimum_price?.regular_price?.currency ?? "USD",
     sizes: sizeAttr ? sizeAttr.value.split(",").map((s) => s.trim()) : [],
     color: colorAttr?.value ?? "",
-    inStock: raw.inStock ?? true,
-    imageUrl: raw.images?.[0]?.url,
-    description: (raw.shortDescription ?? raw.description ?? "").replace(/<[^>]*>/g, "").slice(0, 200) || undefined,
+    inStock: v?.inStock ?? true,
+    imageUrl: p.image?.url ?? p.small_image?.url,
+    description: (v?.shortDescription ?? v?.description ?? "").replace(/<[^>]*>/g, "").slice(0, 200) || undefined,
   };
 }
 
@@ -284,21 +302,22 @@ export const adobeEdsRetailPlatform: PlatformAdapter<RetailData> = {
   executors: {
     search_products: (data) => async ({ query }: { query: string }) => {
       const storeName = (data as any)?.store?.name || "";
+      const merchant = await getMerchantConfig();
 
       const result = await gqlFetch<{
-        productSearch: {
-          items: Array<{ productView: EdsProductViewFull }>;
-          total_count: number;
-        };
-      }>(SEARCH_QUERY, { phrase: query, pageSize: 10 });
+        productSearch: { items: EdsSearchItem[]; total_count: number };
+      }>(SEARCH_QUERY, {
+        phrase: query,
+        pageSize: 10,
+        filter: [{ attribute: "visibility", in: ["Search", "Catalog, Search"] }],
+        context: { customerGroup: merchant?.apiKey === "storefront-widgets" ? "b6589fc6ab0dc82cf12099d1c2d40ab994e8410c" : "", userViewHistory: [] },
+      });
 
       if (!result?.productSearch?.items?.length) {
         return { content: [{ type: "text" as const, text: `No products found for "${query}"${storeName ? ` at ${storeName}` : ""}.` }] };
       }
 
-      const products = result.productSearch.items
-        .map((item) => normalizeCatalogProduct(item.productView))
-        .filter((p) => p.inStock);
+      const products = result.productSearch.items.map(normalizeEdsSearchItem).filter((p) => p.inStock);
 
       if (products.length === 0) {
         return { content: [{ type: "text" as const, text: `No in-stock products found for "${query}".` }] };
@@ -312,17 +331,22 @@ export const adobeEdsRetailPlatform: PlatformAdapter<RetailData> = {
     },
 
     get_product: (data) => async ({ product_id }: { product_id: string }) => {
-      const result = await gqlFetch<{ products: EdsProductViewFull[] }>(
-        PRODUCT_BY_SKU_QUERY,
-        { skus: [product_id] },
-      );
+      const merchant = await getMerchantConfig();
 
-      const raw = result?.products?.[0];
-      if (!raw) {
+      const result = await gqlFetch<{
+        productSearch: { items: EdsSearchItem[] };
+      }>(PRODUCT_BY_SKU_QUERY, {
+        phrase: product_id,
+        filter: [{ attribute: "sku", eq: product_id }],
+        context: { customerGroup: "", userViewHistory: [] },
+      });
+
+      const item = result?.productSearch?.items?.[0];
+      if (!item) {
         return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
       }
 
-      const product = normalizeCatalogProduct(raw);
+      const product = normalizeEdsSearchItem(item);
       return {
         content: [{
           type: "text" as const,
@@ -335,17 +359,22 @@ export const adobeEdsRetailPlatform: PlatformAdapter<RetailData> = {
     },
 
     check_stock: (data) => async ({ product_id, size }: { product_id: string; size: string }) => {
-      const result = await gqlFetch<{ products: EdsProductViewFull[] }>(
-        PRODUCT_BY_SKU_QUERY,
-        { skus: [product_id] },
-      );
+      const merchant = await getMerchantConfig();
 
-      const raw = result?.products?.[0];
-      if (!raw) {
+      const result = await gqlFetch<{
+        productSearch: { items: EdsSearchItem[] };
+      }>(PRODUCT_BY_SKU_QUERY, {
+        phrase: product_id,
+        filter: [{ attribute: "sku", eq: product_id }],
+        context: { customerGroup: "", userViewHistory: [] },
+      });
+
+      const item = result?.productSearch?.items?.[0];
+      if (!item) {
         return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
       }
 
-      const product = normalizeCatalogProduct(raw);
+      const product = normalizeEdsSearchItem(item);
       if (!product.inStock) {
         return { content: [{ type: "text" as const, text: `${product.name} is currently out of stock.` }] };
       }
