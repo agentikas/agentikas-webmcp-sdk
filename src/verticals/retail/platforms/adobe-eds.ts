@@ -13,9 +13,11 @@ export interface EdsProductView {
   urlKey?: string;
   description?: string;
   shortDescription?: string;
-  price: {
-    regular: { amount: { value: number; currency: string } };
-    final?: { amount: { value: number; currency: string } };
+  priceRange?: {
+    minimum?: {
+      regular?: { amount?: { value: number; currency: string } };
+      final?: { amount?: { value: number; currency: string } };
+    };
   };
   images?: Array<{ url: string; label?: string }>;
   attributes?: Array<{ name: string; value: string }>;
@@ -144,9 +146,8 @@ const SEARCH_QUERY = `
           sku
           urlKey
           shortDescription
-          price {
-            regular { amount { value currency } }
-            final { amount { value currency } }
+          priceRange {
+            minimum { regular { amount { value currency } } final { amount { value currency } } }
           }
           images(roles: ["image"]) { url label }
           attributes(roles: ["visible_in_storefront"]) { name value }
@@ -166,9 +167,8 @@ const PRODUCT_QUERY = `
       urlKey
       description
       shortDescription
-      price {
-        regular { amount { value currency } }
-        final { amount { value currency } }
+      priceRange {
+        minimum { regular { amount { value currency } } final { amount { value currency } } }
       }
       images(roles: ["image"]) { url label }
       attributes(roles: ["visible_in_storefront"]) { name value }
@@ -221,8 +221,8 @@ export function normalizeEdsProduct(raw: EdsProductView): Product {
   return {
     id: raw.sku,
     name: raw.name,
-    price: raw.price.final?.amount.value ?? raw.price.regular.amount.value,
-    currency: raw.price.regular.amount.currency,
+    price: raw.priceRange?.minimum?.final?.amount?.value ?? raw.priceRange?.minimum?.regular?.amount?.value ?? 0,
+    currency: raw.priceRange?.minimum?.regular?.amount?.currency ?? raw.priceRange?.minimum?.final?.amount?.currency ?? "USD",
     sizes: sizeAttr ? sizeAttr.value.split(",").map((s) => s.trim()) : [],
     color: colorAttr?.value ?? "",
     inStock: raw.inStock ?? true,

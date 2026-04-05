@@ -7,9 +7,11 @@ const mockProduct: EdsProductView = {
   urlKey: "wireless-bluetooth-headphones",
   shortDescription: "<p>Premium noise-cancelling <b>wireless</b> headphones.</p>",
   description: "Full description of the product with many details.",
-  price: {
-    regular: { amount: { value: 199.99, currency: "USD" } },
-    final: { amount: { value: 149.99, currency: "USD" } },
+  priceRange: {
+    minimum: {
+      regular: { amount: { value: 199.99, currency: "USD" } },
+      final: { amount: { value: 149.99, currency: "USD" } },
+    },
   },
   images: [
     { url: "https://cdn.example.com/headphones.jpg", label: "Main image" },
@@ -39,7 +41,7 @@ describe("normalizeEdsProduct", () => {
   it("falls back to regular price when no final price", () => {
     const noSale: EdsProductView = {
       ...mockProduct,
-      price: { regular: { amount: { value: 199.99, currency: "USD" } } },
+      priceRange: { minimum: { regular: { amount: { value: 199.99, currency: "USD" } } } },
     };
     const p = normalizeEdsProduct(noSale);
     expect(p.price).toBe(199.99);
@@ -90,12 +92,10 @@ describe("normalizeEdsProduct", () => {
     expect(normalizeEdsProduct(noStock).inStock).toBe(true);
   });
 
-  it("currency comes from price, not external detection", () => {
+  it("currency comes from priceRange, not external detection", () => {
     const eur: EdsProductView = {
       ...mockProduct,
-      price: {
-        regular: { amount: { value: 50, currency: "EUR" } },
-      },
+      priceRange: { minimum: { regular: { amount: { value: 50, currency: "EUR" } } } },
     };
     expect(normalizeEdsProduct(eur).currency).toBe("EUR");
   });
