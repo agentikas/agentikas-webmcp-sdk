@@ -52,7 +52,8 @@ interface MerchantConfig {
   storeViewCode: string;
   websiteCode: string;
   apiKey: string;
-  coreEndpoint: string | null; // merchant's own GraphQL (for cart mutations)
+  catalogEndpoint: string | null; // from configs.json "commerce-endpoint" (takes precedence)
+  coreEndpoint: string | null;    // merchant's own GraphQL (for cart mutations)
   isSandbox: boolean;
 }
 
@@ -124,6 +125,7 @@ async function getMerchantConfig(): Promise<MerchantConfig | null> {
     storeViewCode: raw.storeViewCode || "default",
     websiteCode: raw.websiteCode || "base",
     apiKey: raw.apiKey || "storefront-widgets",
+    catalogEndpoint: raw.catalogEndpoint || null,
     coreEndpoint: raw.coreEndpoint || null,
     isSandbox,
   };
@@ -137,6 +139,8 @@ async function getMerchantConfig(): Promise<MerchantConfig | null> {
 // Use Catalog Service for reads (search, products) and core only for mutations (cart).
 
 function getCatalogEndpoint(merchant: MerchantConfig): string {
+  // configs.json "commerce-endpoint" takes precedence over defaults
+  if (merchant.catalogEndpoint) return merchant.catalogEndpoint;
   return merchant.isSandbox ? CATALOG_SERVICE_SANDBOX : CATALOG_SERVICE_ENDPOINT;
 }
 
