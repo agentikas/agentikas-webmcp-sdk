@@ -52,8 +52,9 @@ interface MerchantConfig {
   storeViewCode: string;
   websiteCode: string;
   apiKey: string;
-  catalogEndpoint: string | null; // from configs.json "commerce-endpoint" (takes precedence)
-  coreEndpoint: string | null;    // merchant's own GraphQL (for cart mutations)
+  customerGroup: string;
+  catalogEndpoint: string | null;
+  coreEndpoint: string | null;
   isSandbox: boolean;
 }
 
@@ -69,9 +70,12 @@ async function getMerchantConfig(): Promise<MerchantConfig | null> {
     const metaMap: Record<string, string> = {
       "commerce-environment-id": "environmentId",
       "commerce-website-code": "websiteCode",
+      "commerce-store-code": "storeCode",
       "store-code": "storeCode",
+      "commerce-store-view-code": "storeViewCode",
       "store-view-code": "storeViewCode",
       "commerce-x-api-key": "apiKey",
+      "commerce-customer-group": "customerGroup",
       "commerce-core-endpoint": "coreEndpoint",
       "commerce-endpoint": "catalogEndpoint",
     };
@@ -93,10 +97,11 @@ async function getMerchantConfig(): Promise<MerchantConfig | null> {
           if (e?.key && e?.value) configMap[e.key] = e.value;
         }
         raw.environmentId = raw.environmentId || configMap["commerce-environment-id"] || "";
-        raw.storeCode = raw.storeCode || configMap["store-code"] || "";
-        raw.storeViewCode = raw.storeViewCode || configMap["store-view-code"] || "";
+        raw.storeCode = raw.storeCode || configMap["commerce-store-code"] || configMap["store-code"] || "";
+        raw.storeViewCode = raw.storeViewCode || configMap["commerce-store-view-code"] || configMap["store-view-code"] || "";
         raw.websiteCode = raw.websiteCode || configMap["commerce-website-code"] || "";
         raw.apiKey = raw.apiKey || configMap["commerce-x-api-key"] || "";
+        raw.customerGroup = raw.customerGroup || configMap["commerce-customer-group"] || "";
         raw.coreEndpoint = raw.coreEndpoint || configMap["commerce-core-endpoint"] || "";
         raw.catalogEndpoint = raw.catalogEndpoint || configMap["commerce-endpoint"] || "";
       }
@@ -125,6 +130,7 @@ async function getMerchantConfig(): Promise<MerchantConfig | null> {
     storeViewCode: raw.storeViewCode || "default",
     websiteCode: raw.websiteCode || "base",
     apiKey: raw.apiKey || "storefront-widgets",
+    customerGroup: raw.customerGroup || "",
     catalogEndpoint: raw.catalogEndpoint || null,
     coreEndpoint: raw.coreEndpoint || null,
     isSandbox,
@@ -314,7 +320,7 @@ export const adobeEdsRetailPlatform: PlatformAdapter<RetailData> = {
         phrase: query,
         pageSize: 10,
         filter: [{ attribute: "visibility", in: ["Search", "Catalog, Search"] }],
-        context: { customerGroup: merchant?.apiKey === "storefront-widgets" ? "b6589fc6ab0dc82cf12099d1c2d40ab994e8410c" : "", userViewHistory: [] },
+        context: { customerGroup: merchant?.customerGroup || "", userViewHistory: [] },
       });
 
       if (!result?.productSearch?.items?.length) {
