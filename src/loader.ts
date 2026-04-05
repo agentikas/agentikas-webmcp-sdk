@@ -34,6 +34,8 @@ registerVertical(retail, retailExecutors, "agentikas");
 registerPlatform("retail", shopifyRetailPlatform);
 registerPlatform("retail", woocommerceRetailPlatform);
 registerPlatform("retail", adobeRetailPlatform);
+registerPlatform("retail", { id: "generic", name: "Generic", executors: retailExecutors });
+registerPlatform("restaurant", { id: "generic", name: "Generic", executors: restaurantExecutors });
 
 // ── Detection rules ────────────────────────────────────────────
 
