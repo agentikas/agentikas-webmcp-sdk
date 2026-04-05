@@ -96,11 +96,11 @@ export const woocommerceRetailPlatform: PlatformAdapter<RetailData> = {
 
     check_stock: (data) => async ({ product_id, size }: { product_id: string; size: string }) => {
       const res = await fetch(`${WOO_API}/products?slug=${product_id}`);
-      const data: WooProduct[] = await res.json();
-      if (!data.length) {
+      const json: WooProduct[] = await res.json();
+      if (!json.length) {
         return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
       }
-      const product = normalizeWooProduct(data[0]);
+      const product = normalizeWooProduct(json[0]);
       if (!product.inStock) {
         return { content: [{ type: "text" as const, text: `${product.name} is currently out of stock.` }] };
       }
@@ -112,11 +112,11 @@ export const woocommerceRetailPlatform: PlatformAdapter<RetailData> = {
 
     add_to_cart: (data) => async ({ product_id, size, quantity = 1 }: { product_id: string; size: string; quantity?: number }) => {
       const res = await fetch(`${WOO_API}/products?slug=${product_id}`);
-      const data: WooProduct[] = await res.json();
-      if (!data.length) {
+      const json: WooProduct[] = await res.json();
+      if (!json.length) {
         return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
       }
-      const raw = data[0];
+      const raw = json[0];
       const product = normalizeWooProduct(raw);
       if (!product.inStock || !product.sizes.includes(size)) {
         return { content: [{ type: "text" as const, text: `${product.name} in size ${size} is not available.` }] };

@@ -17,6 +17,7 @@ import { retailExecutors } from "./verticals/retail/executors";
 import { shopifyRetailPlatform } from "./verticals/retail/platforms/shopify";
 import { woocommerceRetailPlatform } from "./verticals/retail/platforms/woocommerce";
 import { adobeRetailPlatform } from "./verticals/retail/platforms/adobe";
+import { adobeEdsRetailPlatform } from "./verticals/retail/platforms/adobe-eds";
 import type { AgentikasConfig } from "./types";
 
 declare global {
@@ -33,6 +34,7 @@ registerVertical(retail, retailExecutors, "agentikas");
 
 registerPlatform("retail", shopifyRetailPlatform);
 registerPlatform("retail", woocommerceRetailPlatform);
+registerPlatform("retail", adobeEdsRetailPlatform);
 registerPlatform("retail", adobeRetailPlatform);
 registerPlatform("retail", { id: "generic", name: "Generic", executors: retailExecutors });
 registerPlatform("restaurant", { id: "generic", name: "Generic", executors: restaurantExecutors });
@@ -41,6 +43,19 @@ registerPlatform("restaurant", { id: "generic", name: "Generic", executors: rest
 
 registerDetectionRule({ platformId: "shopify", detect: () => !!(window as any).Shopify });
 registerDetectionRule({ platformId: "woocommerce", detect: () => !!document.querySelector(".woocommerce, .wc-block-grid") });
+registerDetectionRule({
+  platformId: "adobe-eds",
+  detect: () => {
+    try {
+      const importMap = document.querySelector('script[type="importmap"]');
+      if (importMap?.textContent?.includes("@dropins/")) return true;
+      if (document.querySelector('meta[name="commerce-endpoint"]')) return true;
+      const host = window.location.hostname;
+      if (host.includes(".aem.live") || host.includes(".hlx.live") || host.includes(".aem.page")) return true;
+      return false;
+    } catch { return false; }
+  },
+});
 registerDetectionRule({
   platformId: "adobe",
   detect: () => {
