@@ -100,27 +100,30 @@ export const adobeRetailPlatform: PlatformAdapter<RetailData> = {
     }
   },
   executors: {
-    search_products: ({ store }) => async ({ query }: { query: string }) => {
+    search_products: (data) => async ({ query }: { query: string }) => {
+      const currency = (data as any)?.store?.currency ?? detectAdobeCurrency();
+      const storeName = (data as any)?.store?.name || "";
       const filter = encodeURIComponent(`searchCriteria[filter_groups][0][filters][0][field]=name&searchCriteria[filter_groups][0][filters][0][value]=%25${query}%25&searchCriteria[filter_groups][0][filters][0][condition_type]=like&searchCriteria[pageSize]=10`);
       const res = await fetch(`${ADOBE_API}/products?${filter}`);
-      const data = await res.json();
-      const rawProducts: AdobeProduct[] = data.items ?? [];
-      const products = rawProducts.map((p) => normalizeAdobeProduct(p, store.currency)).filter((p) => p.inStock);
+      const json = await res.json();
+      const rawProducts: AdobeProduct[] = json.items ?? [];
+      const products = rawProducts.map((p) => normalizeAdobeProduct(p, currency)).filter((p) => p.inStock);
 
       if (products.length === 0) {
-        return { content: [{ type: "text" as const, text: `No products found for "${query}" at ${store.name}.` }] };
+        return { content: [{ type: "text" as const, text: `No products found for "${query}" at ${storeName}.` }] };
       }
       const list = products.map((p) => `- ${p.name} — ${p.currency} ${p.price.toFixed(2)} | Sizes: ${p.sizes.join(", ")}`).join("\n");
       return { content: [{ type: "text" as const, text: `# Results for "${query}"\n\n${list}` }] };
     },
 
-    get_product: ({ store }) => async ({ product_id }: { product_id: string }) => {
+    get_product: (data) => async ({ product_id }: { product_id: string }) => {
+      const currency = (data as any)?.store?.currency ?? detectAdobeCurrency();
       const res = await fetch(`${ADOBE_API}/products/${encodeURIComponent(product_id)}`);
       if (!res.ok) {
         return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
       }
       const raw: AdobeProduct = await res.json();
-      const product = normalizeAdobeProduct(raw, store.currency);
+      const product = normalizeAdobeProduct(raw, currency);
       return {
         content: [{
           type: "text" as const,
@@ -129,13 +132,14 @@ export const adobeRetailPlatform: PlatformAdapter<RetailData> = {
       };
     },
 
-    check_stock: ({ store }) => async ({ product_id, size }: { product_id: string; size: string }) => {
+    check_stock: (data) => async ({ product_id, size }: { product_id: string; size: string }) => {
+      const currency = (data as any)?.store?.currency ?? detectAdobeCurrency();
       const res = await fetch(`${ADOBE_API}/products/${encodeURIComponent(product_id)}`);
       if (!res.ok) {
         return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
       }
       const raw: AdobeProduct = await res.json();
-      const product = normalizeAdobeProduct(raw, store.currency);
+      const product = normalizeAdobeProduct(raw, currency);
       if (!product.inStock) {
         return { content: [{ type: "text" as const, text: `${product.name} is currently out of stock.` }] };
       }
@@ -145,13 +149,14 @@ export const adobeRetailPlatform: PlatformAdapter<RetailData> = {
       return { content: [{ type: "text" as const, text: `${product.name} in size ${size} is available. Price: ${product.currency} ${product.price.toFixed(2)}` }] };
     },
 
-    add_to_cart: ({ store }) => async ({ product_id, size, quantity = 1 }: { product_id: string; size: string; quantity?: number }) => {
+    add_to_cart: (data) => async ({ product_id, size, quantity = 1 }: { product_id: string; size: string; quantity?: number }) => {
+      const currency = (data as any)?.store?.currency ?? detectAdobeCurrency();
       const res = await fetch(`${ADOBE_API}/products/${encodeURIComponent(product_id)}`);
       if (!res.ok) {
         return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
       }
       const raw: AdobeProduct = await res.json();
-      const product = normalizeAdobeProduct(raw, store.currency);
+      const product = normalizeAdobeProduct(raw, currency);
       if (!product.inStock) {
         return { content: [{ type: "text" as const, text: `${product.name} is not available.` }] };
       }

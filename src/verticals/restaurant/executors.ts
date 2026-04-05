@@ -1,56 +1,70 @@
 // @agentikas/webmcp-sdk — Restaurant executors (Agentikas platform)
-// Client-side execute functions that work with pre-loaded RestaurantData.
+// Safe with empty data — returns "no data available" messages.
 
 import type { ExecutorMap } from "../../types";
 import type { RestaurantData } from "./types";
 import { ALLERGENS, filterMenuItems, getNumericAllergens } from "./utils";
 
 export const restaurantExecutors: ExecutorMap<RestaurantData> = {
-  get_business_info: ({ restaurant }) => () => {
-    const hours = restaurant.openingHours
-      .map((h) => `  ${h.dayOfWeek.join(", ")}: ${h.opens} - ${h.closes}`)
+  get_business_info: (data) => () => {
+    const r = (data as any)?.restaurant;
+    if (!r) {
+      return { content: [{ type: "text" as const, text: "No restaurant data available." }] };
+    }
+
+    const hours = (r.openingHours ?? [])
+      .map((h: any) => `  ${h.dayOfWeek.join(", ")}: ${h.opens} - ${h.closes}`)
       .join("\n");
 
     const features = [];
-    if (restaurant.features.hasTerraza) features.push("Terraza");
-    if (restaurant.features.hasParking) features.push("Parking");
-    if (restaurant.features.isAccessible) features.push("Accesible");
-    if (restaurant.features.acceptsReservations) features.push("Reservas disponibles");
-    if (restaurant.features.acceptsGroups) features.push("Grupos bienvenidos");
-    if (restaurant.features.hasPrivateRoom) features.push("Salon privado");
+    if (r.features?.hasTerraza) features.push("Terraza");
+    if (r.features?.hasParking) features.push("Parking");
+    if (r.features?.isAccessible) features.push("Accesible");
+    if (r.features?.acceptsReservations) features.push("Reservas disponibles");
+    if (r.features?.acceptsGroups) features.push("Grupos bienvenidos");
+    if (r.features?.hasPrivateRoom) features.push("Salon privado");
 
     return {
       content: [{
         type: "text" as const,
-        text: `# ${restaurant.name}\n\n${restaurant.description}\n\n` +
-          `## Direccion\n${restaurant.address.streetAddress}, ${restaurant.address.postalCode} ${restaurant.address.locality}\n\n` +
-          `## Contacto\nTelefono: ${restaurant.contact.phone}${restaurant.contact.whatsapp ? `\nWhatsApp: ${restaurant.contact.whatsapp}` : ""}\n\n` +
-          `## Horario\n${hours}\n\n` +
-          `## Cocina\n${restaurant.cuisine.join(", ")}\n\n` +
-          `## Precio medio\n${restaurant.priceRange}\n\n` +
-          `## Caracteristicas\n${features.map((f) => `• ${f}`).join("\n")}`,
+        text: `# ${r.name}\n\n${r.description || ""}\n\n` +
+          `## Direccion\n${r.address?.streetAddress || ""}, ${r.address?.postalCode || ""} ${r.address?.locality || ""}\n\n` +
+          `## Contacto\nTelefono: ${r.contact?.phone || ""}${r.contact?.whatsapp ? `\nWhatsApp: ${r.contact.whatsapp}` : ""}\n\n` +
+          (hours ? `## Horario\n${hours}\n\n` : "") +
+          `## Cocina\n${(r.cuisine ?? []).join(", ")}\n\n` +
+          `## Precio medio\n${r.priceRange || ""}\n\n` +
+          (features.length > 0 ? `## Caracteristicas\n${features.map((f) => `• ${f}`).join("\n")}` : ""),
       }],
     };
   },
 
-  get_menu: ({ restaurant, allItems }) => ({
+  get_menu: (data) => ({
     category = "all",
     exclude_allergens = [],
   }: {
     category?: string;
     exclude_allergens?: number[];
   }) => {
+    const r = (data as any)?.restaurant;
+    const allItems = (data as any)?.allItems ?? [];
+
+    if (allItems.length === 0) {
+      return { content: [{ type: "text" as const, text: "No menu data available." }] };
+    }
+
     const excluded = (exclude_allergens ?? []).map(Number);
 
-    window.dispatchEvent(
-      new CustomEvent("agentikas:set-allergens", { detail: { allergens: excluded } }),
-    );
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("agentikas:set-allergens", { detail: { allergens: excluded } }),
+      );
+    }
 
-    const categoryNames = [...new Set(allItems.map((i) => i.category))];
+    const categoryNames = [...new Set(allItems.map((i: any) => i.category))];
     const cat = category.toLowerCase();
     const sourceItems = cat === "all"
       ? allItems
-      : allItems.filter((item) => item.category.toLowerCase().includes(cat));
+      : allItems.filter((item: any) => item.category.toLowerCase().includes(cat));
 
     if (cat !== "all" && sourceItems.length === 0) {
       return { content: [{ type: "text" as const, text: `Categoria "${category}" no encontrada. Disponibles: ${categoryNames.join(", ")}, all` }] };
@@ -89,28 +103,33 @@ export const restaurantExecutors: ExecutorMap<RestaurantData> = {
       ? `\n\nFiltrado: ${totalRemoved} plato(s) ocultos con ${excluded.map((n) => ALLERGENS[n]?.es ?? n).join(", ")}.`
       : "";
 
-    return { content: [{ type: "text" as const, text: `# Carta de ${restaurant.name}\n\n${summary}${note}` }] };
+    return { content: [{ type: "text" as const, text: `# Carta${r?.name ? ` de ${r.name}` : ""}\n\n${summary}${note}` }] };
   },
 
-  check_availability: ({ restaurant }) => ({ date, time, party_size }: { date: string; time?: string; party_size: number }) => {
+  check_availability: (data) => ({ date, time, party_size }: { date: string; time?: string; party_size: number }) => {
+    const r = (data as any)?.restaurant;
+    if (!r) {
+      return { content: [{ type: "text" as const, text: "No restaurant data available." }] };
+    }
+
     const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     const dayName = dayNames[new Date(date + "T12:00:00").getDay()];
-    const isOpen = restaurant.openingHours.some((h) => h.dayOfWeek.includes(dayName));
+    const isOpen = (r.openingHours ?? []).some((h: any) => h.dayOfWeek.includes(dayName));
 
     if (!isOpen) {
-      return { content: [{ type: "text" as const, text: `${restaurant.name} esta cerrado ese dia.` }] };
+      return { content: [{ type: "text" as const, text: `${r.name || "Restaurant"} esta cerrado ese dia.` }] };
     }
 
     return {
       content: [{
         type: "text" as const,
-        text: `${restaurant.name} esta abierto el ${date}${time ? ` a las ${time}` : ""}. ` +
-          `Para ${party_size} persona${party_size > 1 ? "s" : ""}, usa make_reservation o llama al ${restaurant.contact.phone}.`,
+        text: `${r.name || "Restaurant"} esta abierto el ${date}${time ? ` a las ${time}` : ""}. ` +
+          `Para ${party_size} persona${party_size > 1 ? "s" : ""}, usa make_reservation${r.contact?.phone ? ` o llama al ${r.contact.phone}` : ""}.`,
       }],
     };
   },
 
-  make_reservation: ({ restaurant }) => ({ guest_name, date, time, party_size, phone, notes }: {
+  make_reservation: (data) => ({ guest_name, date, time, party_size, phone, notes }: {
     guest_name: string; date: string; time: string; party_size: number; phone?: string; notes?: string;
   }) => {
     if (party_size < 1 || party_size > 20) {
@@ -120,8 +139,11 @@ export const restaurantExecutors: ExecutorMap<RestaurantData> = {
       return { content: [{ type: "text" as const, text: "Formato de fecha incorrecto. Usa YYYY-MM-DD." }] };
     }
 
+    const r = (data as any)?.restaurant;
     const id = `RES-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
-    const addr = `${restaurant.address.streetAddress}, ${restaurant.address.postalCode} ${restaurant.address.locality}`;
+    const addr = r?.address
+      ? `${r.address.streetAddress}, ${r.address.postalCode} ${r.address.locality}`
+      : "";
 
     return {
       content: [{
@@ -130,7 +152,7 @@ export const restaurantExecutors: ExecutorMap<RestaurantData> = {
           `**Comensales:** ${party_size}\n` +
           (phone ? `**Telefono:** ${phone}\n` : "") +
           (notes ? `**Notas:** ${notes}\n` : "") +
-          `\nTe esperamos en **${addr}**.`,
+          (addr ? `\nTe esperamos en **${addr}**.` : ""),
       }],
     };
   },

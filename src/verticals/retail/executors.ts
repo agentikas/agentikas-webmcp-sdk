@@ -1,28 +1,36 @@
 // @agentikas/webmcp-sdk — Retail executors (preloaded data, platform-agnostic)
 // Used when product data is already loaded (e.g. server-rendered page).
+// Safe with empty data — returns "no data available" messages.
 
 import type { ExecutorMap } from "../../types";
 import type { RetailData } from "./types";
 
 export const retailExecutors: ExecutorMap<RetailData> = {
-  search_products: ({ store, products }) => ({ query }: { query: string }) => {
+  search_products: (data) => ({ query }: { query: string }) => {
+    const store = (data as any)?.store;
+    const products = (data as any)?.products ?? [];
+    if (products.length === 0) {
+      return { content: [{ type: "text" as const, text: "No product data available. This tool requires preloaded data or a platform adapter." }] };
+    }
     const q = query.toLowerCase();
     const matches = products.filter(
-      (p) => p.inStock && (p.name.toLowerCase().includes(q) || p.color.toLowerCase().includes(q) || (p.description?.toLowerCase().includes(q) ?? false)),
+      (p: any) => p.inStock && (p.name.toLowerCase().includes(q) || p.color?.toLowerCase().includes(q) || (p.description?.toLowerCase().includes(q) ?? false)),
     );
     if (matches.length === 0) {
-      return { content: [{ type: "text" as const, text: `No products found for "${query}" at ${store.name}.` }] };
+      return { content: [{ type: "text" as const, text: `No products found for "${query}"${store?.name ? ` at ${store.name}` : ""}.` }] };
     }
     const list = matches
-      .map((p) => `- ${p.name} — ${p.currency} ${p.price.toFixed(2)} | Sizes: ${p.sizes.join(", ")} | Color: ${p.color}`)
+      .map((p: any) => `- ${p.name} — ${p.currency} ${p.price.toFixed(2)} | Sizes: ${p.sizes.join(", ")} | Color: ${p.color}`)
       .join("\n");
-    return { content: [{ type: "text" as const, text: `# Results for "${query}" at ${store.name}\n\n${list}` }] };
+    return { content: [{ type: "text" as const, text: `# Results for "${query}"${store?.name ? ` at ${store.name}` : ""}\n\n${list}` }] };
   },
 
-  get_product: ({ store, products }) => ({ product_id }: { product_id: string }) => {
-    const product = products.find((p) => p.id === product_id);
+  get_product: (data) => ({ product_id }: { product_id: string }) => {
+    const store = (data as any)?.store;
+    const products = (data as any)?.products ?? [];
+    const product = products.find((p: any) => p.id === product_id);
     if (!product) {
-      return { content: [{ type: "text" as const, text: `Product "${product_id}" not found at ${store.name}.` }] };
+      return { content: [{ type: "text" as const, text: `Product "${product_id}" not found${store?.name ? ` at ${store.name}` : ""}.` }] };
     }
     return {
       content: [{
@@ -32,8 +40,9 @@ export const retailExecutors: ExecutorMap<RetailData> = {
     };
   },
 
-  check_stock: ({ store, products }) => ({ product_id, size }: { product_id: string; size: string }) => {
-    const product = products.find((p) => p.id === product_id);
+  check_stock: (data) => ({ product_id, size }: { product_id: string; size: string }) => {
+    const products = (data as any)?.products ?? [];
+    const product = products.find((p: any) => p.id === product_id);
     if (!product) {
       return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
     }
@@ -46,8 +55,9 @@ export const retailExecutors: ExecutorMap<RetailData> = {
     return { content: [{ type: "text" as const, text: `${product.name} in size ${size} is available. Price: ${product.currency} ${product.price.toFixed(2)}` }] };
   },
 
-  add_to_cart: ({ products }) => ({ product_id, size, quantity = 1 }: { product_id: string; size: string; quantity?: number }) => {
-    const product = products.find((p) => p.id === product_id);
+  add_to_cart: (data) => ({ product_id, size, quantity = 1 }: { product_id: string; size: string; quantity?: number }) => {
+    const products = (data as any)?.products ?? [];
+    const product = products.find((p: any) => p.id === product_id);
     if (!product) {
       return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
     }

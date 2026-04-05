@@ -79,8 +79,7 @@ function init() {
   const tools = buildTools(config, data);
 
   if (tools.length === 0) {
-    console.warn("[Agentikas] No tools built. Check vertical and config.tools.");
-    return;
+    console.warn("[Agentikas] No tools built. Check vertical, config.tools, and preloaded data.");
   }
 
   const executorMap = getExecutors(config.vertical, config.platform);

@@ -1,11 +1,15 @@
 // @agentikas/webmcp-sdk — Retail tool factories (platform-agnostic)
+// Works with or without preloaded data (lazy mode for GTM on third-party sites)
 
 import type { VerticalDefinition, ToolFactory } from "../../types";
 import type { RetailData } from "./types";
 
-const search: ToolFactory<RetailData> = ({ store }) => ({
+const storeName = (data: any): string => data?.store?.name || "";
+const storeLabel = (data: any): string => storeName(data) ? ` in ${storeName(data)}` : "";
+
+const search: ToolFactory<RetailData> = (data) => ({
   name: "search_products",
-  description: `Search products in ${store.name}. Returns matching products with prices and available sizes.`,
+  description: `Search products${storeLabel(data)}. Returns matching products with prices and available sizes.`,
   input_schema: {
     type: "object",
     properties: {
@@ -15,9 +19,9 @@ const search: ToolFactory<RetailData> = ({ store }) => ({
   },
 });
 
-const product: ToolFactory<RetailData> = ({ store }) => ({
+const product: ToolFactory<RetailData> = (data) => ({
   name: "get_product",
-  description: `Get detailed information about a product from ${store.name}.`,
+  description: `Get detailed information about a product${storeLabel(data)}.`,
   input_schema: {
     type: "object",
     properties: {
@@ -27,9 +31,9 @@ const product: ToolFactory<RetailData> = ({ store }) => ({
   },
 });
 
-const stock: ToolFactory<RetailData> = ({ store }) => ({
+const stock: ToolFactory<RetailData> = (data) => ({
   name: "check_stock",
-  description: `Check if a specific size is available for a product at ${store.name}.`,
+  description: `Check if a specific size is available for a product${storeLabel(data)}.`,
   input_schema: {
     type: "object",
     properties: {
@@ -40,9 +44,9 @@ const stock: ToolFactory<RetailData> = ({ store }) => ({
   },
 });
 
-const cart: ToolFactory<RetailData> = ({ store }) => ({
+const cart: ToolFactory<RetailData> = (data) => ({
   name: "add_to_cart",
-  description: `Add a product to the shopping cart at ${store.name}.`,
+  description: `Add a product to the shopping cart${storeLabel(data)}.`,
   input_schema: {
     type: "object",
     properties: {

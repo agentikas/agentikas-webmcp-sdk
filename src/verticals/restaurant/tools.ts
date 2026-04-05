@@ -1,23 +1,33 @@
 // @agentikas/webmcp-sdk — Restaurant tool factories (server-side, serializable)
+// Works with or without preloaded data (lazy mode for GTM on third-party sites)
 
 import type { VerticalDefinition, ToolFactory } from "../../types";
 import type { RestaurantData } from "./types";
 
-const info: ToolFactory<RestaurantData> = ({ restaurant }) => ({
+const rName = (data: any): string => data?.restaurant?.name || "";
+const rLabel = (data: any): string => rName(data) ? ` ${rName(data)}` : "";
+
+const info: ToolFactory<RestaurantData> = (data) => ({
   name: "get_business_info",
-  description: `Returns general information about ${restaurant.name}: location, opening hours, contact, cuisine type and features.`,
+  description: `Returns general information about${rLabel(data) || " this restaurant"}: location, opening hours, contact, cuisine type and features.`,
   input_schema: { type: "object", properties: {}, required: [] },
 });
 
-const menu: ToolFactory<RestaurantData> = ({ restaurant, allItems }) => {
-  const categoryNames = [...new Set(allItems.map((i) => i.category))];
+const menu: ToolFactory<RestaurantData> = (data) => {
+  const allItems = (data as any)?.allItems ?? [];
+  const categoryNames = allItems.length > 0
+    ? [...new Set(allItems.map((i: any) => i.category))]
+    : [];
+  const categoryList = categoryNames.length > 0
+    ? `\n\nAvailable categories: ${categoryNames.join(", ")}, all`
+    : "";
   return {
     name: "get_menu",
     description:
-      `Returns the menu of ${restaurant.name}. Filter by category and/or exclude allergens.\n\n` +
+      `Returns the menu${rLabel(data) ? ` of${rLabel(data)}` : ""}. Filter by category and/or exclude allergens.\n\n` +
       `Allergen numbers (EU 1169/2011): 1=Gluten, 2=Crustaceans, 3=Eggs, 4=Fish, 5=Peanuts, 6=Soy, ` +
-      `7=Dairy, 8=Tree nuts, 9=Celery, 10=Mustard, 11=Sesame, 12=Sulphites, 13=Lupin, 14=Molluscs\n\n` +
-      `Available categories: ${categoryNames.join(", ")}, all`,
+      `7=Dairy, 8=Tree nuts, 9=Celery, 10=Mustard, 11=Sesame, 12=Sulphites, 13=Lupin, 14=Molluscs` +
+      categoryList,
     input_schema: {
       type: "object",
       properties: {
@@ -29,9 +39,9 @@ const menu: ToolFactory<RestaurantData> = ({ restaurant, allItems }) => {
   };
 };
 
-const availability: ToolFactory<RestaurantData> = ({ restaurant }) => ({
+const availability: ToolFactory<RestaurantData> = (data) => ({
   name: "check_availability",
-  description: `Check table availability at ${restaurant.name} for a given date, time and party size.`,
+  description: `Check table availability at${rLabel(data) || " this restaurant"} for a given date, time and party size.`,
   input_schema: {
     type: "object",
     properties: {
@@ -43,9 +53,9 @@ const availability: ToolFactory<RestaurantData> = ({ restaurant }) => ({
   },
 });
 
-const booking: ToolFactory<RestaurantData> = ({ restaurant }) => ({
+const booking: ToolFactory<RestaurantData> = (data) => ({
   name: "make_reservation",
-  description: `Make a table reservation at ${restaurant.name}.`,
+  description: `Make a table reservation at${rLabel(data) || " this restaurant"}.`,
   input_schema: {
     type: "object",
     properties: {

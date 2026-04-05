@@ -81,27 +81,30 @@ export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
   name: "Shopify",
   detect: () => !!(globalThis.window as any)?.Shopify,
   executors: {
-    search_products: ({ store }) => async ({ query }: { query: string }) => {
+    search_products: (data) => async ({ query }: { query: string }) => {
+      const currency = (data as any)?.store?.currency ?? detectShopifyCurrency();
+      const storeName = (data as any)?.store?.name || "";
       const res = await fetch(`/search/suggest.json?q=${encodeURIComponent(query)}&resources[type]=product&resources[limit]=10`);
-      const data = await res.json();
-      const rawProducts: ShopifyProduct[] = data.resources?.results?.products ?? [];
-      const products = rawProducts.map((p) => normalizeShopifyProduct(p, store.currency));
+      const json = await res.json();
+      const rawProducts: ShopifyProduct[] = json.resources?.results?.products ?? [];
+      const products = rawProducts.map((p) => normalizeShopifyProduct(p, currency));
       const inStock = products.filter((p) => p.inStock);
 
       if (inStock.length === 0) {
-        return { content: [{ type: "text" as const, text: `No products found for "${query}" at ${store.name}.` }] };
+        return { content: [{ type: "text" as const, text: `No products found for "${query}" at ${storeName}.` }] };
       }
       const list = inStock.map((p) => `- ${p.name} — ${p.currency} ${p.price.toFixed(2)} | Sizes: ${p.sizes.join(", ")}`).join("\n");
       return { content: [{ type: "text" as const, text: `# Results for "${query}"\n\n${list}` }] };
     },
 
-    get_product: ({ store }) => async ({ product_id }: { product_id: string }) => {
+    get_product: (data) => async ({ product_id }: { product_id: string }) => {
+      const currency = (data as any)?.store?.currency ?? detectShopifyCurrency();
       const res = await fetch(`/products/${product_id}.json`);
       if (!res.ok) {
         return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
       }
-      const data = await res.json();
-      const product = normalizeShopifyProduct(data.product, store.currency);
+      const json = await res.json();
+      const product = normalizeShopifyProduct(json.product, currency);
       return {
         content: [{
           type: "text" as const,
@@ -110,30 +113,32 @@ export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
       };
     },
 
-    check_stock: ({ store }) => async ({ product_id, size }: { product_id: string; size: string }) => {
+    check_stock: (data) => async ({ product_id, size }: { product_id: string; size: string }) => {
+      const currency = (data as any)?.store?.currency ?? detectShopifyCurrency();
       const res = await fetch(`/products/${product_id}.json`);
       if (!res.ok) {
         return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
       }
-      const data = await res.json();
-      const raw: ShopifyProduct = data.product;
+      const json = await res.json();
+      const raw: ShopifyProduct = json.product;
       const variant = raw.variants.find(
         (v) => (v.option1?.toLowerCase() === size.toLowerCase() || v.option2?.toLowerCase() === size.toLowerCase()) && v.available,
       );
       if (!variant) {
-        const product = normalizeShopifyProduct(raw, store.currency);
+        const product = normalizeShopifyProduct(raw, currency);
         return { content: [{ type: "text" as const, text: `Size ${size} is not available for ${product.name}. Available: ${product.sizes.join(", ")}` }] };
       }
-      return { content: [{ type: "text" as const, text: `${raw.title} in size ${size} is available. Price: ${store.currency} ${parseFloat(variant.price).toFixed(2)}` }] };
+      return { content: [{ type: "text" as const, text: `${raw.title} in size ${size} is available. Price: ${currency} ${parseFloat(variant.price).toFixed(2)}` }] };
     },
 
-    add_to_cart: ({ store }) => async ({ product_id, size, quantity = 1 }: { product_id: string; size: string; quantity?: number }) => {
+    add_to_cart: (data) => async ({ product_id, size, quantity = 1 }: { product_id: string; size: string; quantity?: number }) => {
+      const currency = (data as any)?.store?.currency ?? detectShopifyCurrency();
       const prodRes = await fetch(`/products/${product_id}.json`);
       if (!prodRes.ok) {
         return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
       }
-      const data = await prodRes.json();
-      const raw: ShopifyProduct = data.product;
+      const json = await prodRes.json();
+      const raw: ShopifyProduct = json.product;
       const variant = raw.variants.find(
         (v) => (v.option1?.toLowerCase() === size.toLowerCase() || v.option2?.toLowerCase() === size.toLowerCase()) && v.available,
       );
@@ -145,7 +150,7 @@ export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: [{ id: variant.id, quantity }] }),
       });
-      return { content: [{ type: "text" as const, text: `Added ${quantity}x ${raw.title} (size ${size}) to cart. Price: ${store.currency} ${parseFloat(variant.price).toFixed(2)}` }] };
+      return { content: [{ type: "text" as const, text: `Added ${quantity}x ${raw.title} (size ${size}) to cart. Price: ${currency} ${parseFloat(variant.price).toFixed(2)}` }] };
     },
   },
 };

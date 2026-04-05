@@ -66,25 +66,26 @@ export const woocommerceRetailPlatform: PlatformAdapter<RetailData> = {
   name: "WooCommerce",
   detect: () => !!document.querySelector(".woocommerce, .wc-block-grid"),
   executors: {
-    search_products: ({ store }) => async ({ query }: { query: string }) => {
+    search_products: (data) => async ({ query }: { query: string }) => {
+      const storeName = (data as any)?.store?.name || "";
       const res = await fetch(`${WOO_API}/products?search=${encodeURIComponent(query)}&per_page=10`);
       const rawProducts: WooProduct[] = await res.json();
       const products = rawProducts.map(normalizeWooProduct).filter((p) => p.inStock);
 
       if (products.length === 0) {
-        return { content: [{ type: "text" as const, text: `No products found for "${query}" at ${store.name}.` }] };
+        return { content: [{ type: "text" as const, text: `No products found for "${query}" at ${storeName}.` }] };
       }
       const list = products.map((p) => `- ${p.name} — ${p.currency} ${p.price.toFixed(2)} | Sizes: ${p.sizes.join(", ")}`).join("\n");
       return { content: [{ type: "text" as const, text: `# Results for "${query}"\n\n${list}` }] };
     },
 
-    get_product: ({ store }) => async ({ product_id }: { product_id: string }) => {
+    get_product: (data) => async ({ product_id }: { product_id: string }) => {
       const res = await fetch(`${WOO_API}/products?slug=${product_id}`);
-      const data: WooProduct[] = await res.json();
-      if (!data.length) {
+      const results: WooProduct[] = await res.json();
+      if (!results.length) {
         return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
       }
-      const product = normalizeWooProduct(data[0]);
+      const product = normalizeWooProduct(results[0]);
       return {
         content: [{
           type: "text" as const,
@@ -93,7 +94,7 @@ export const woocommerceRetailPlatform: PlatformAdapter<RetailData> = {
       };
     },
 
-    check_stock: ({ store }) => async ({ product_id, size }: { product_id: string; size: string }) => {
+    check_stock: (data) => async ({ product_id, size }: { product_id: string; size: string }) => {
       const res = await fetch(`${WOO_API}/products?slug=${product_id}`);
       const data: WooProduct[] = await res.json();
       if (!data.length) {
@@ -109,7 +110,7 @@ export const woocommerceRetailPlatform: PlatformAdapter<RetailData> = {
       return { content: [{ type: "text" as const, text: `${product.name} in size ${size} is available. Price: ${product.currency} ${product.price.toFixed(2)}` }] };
     },
 
-    add_to_cart: ({ store }) => async ({ product_id, size, quantity = 1 }: { product_id: string; size: string; quantity?: number }) => {
+    add_to_cart: (data) => async ({ product_id, size, quantity = 1 }: { product_id: string; size: string; quantity?: number }) => {
       const res = await fetch(`${WOO_API}/products?slug=${product_id}`);
       const data: WooProduct[] = await res.json();
       if (!data.length) {
