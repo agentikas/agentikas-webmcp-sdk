@@ -22,57 +22,79 @@ export interface EdsProductView {
   inStock?: boolean;
 }
 
-// ── GraphQL endpoint discovery ─────────────────────────────────
+// ── Site config cache ──────────────────────────────────────────
+// EDS Commerce stores config in /configs.json, meta tags, or drop-in globals.
+// We cache it after first fetch to avoid repeated requests.
 
-function getGraphQLEndpoint(): string | null {
+let cachedConfig: Record<string, string> | null = null;
+
+async function loadSiteConfig(): Promise<Record<string, string>> {
+  if (cachedConfig) return cachedConfig;
+
+  const config: Record<string, string> = {};
+
+  // Method 1: Meta tags (highest priority, sync)
   try {
-    // Method 1: commerce-endpoint meta tag
-    const meta = document.querySelector('meta[name="commerce-endpoint"]');
-    if (meta?.getAttribute("content")) return meta.getAttribute("content");
-
-    // Method 2: commerce-store-config meta (JSON with endpoint)
-    const configMeta = document.querySelector('meta[name="commerce-store-config"]');
-    if (configMeta?.getAttribute("content")) {
-      try {
-        const config = JSON.parse(configMeta.getAttribute("content")!);
-        if (config.commerceEndpoint) return config.commerceEndpoint;
-      } catch { /* invalid JSON, continue */ }
+    const metaNames = ["commerce-endpoint", "commerce-environment-id", "commerce-website-code", "store-code", "store-view-code", "commerce-core-endpoint", "commerce-x-api-key"];
+    for (const name of metaNames) {
+      const meta = document.querySelector(`meta[name="${name}"]`);
+      if (meta?.getAttribute("content")) {
+        config[name] = meta.getAttribute("content")!;
+      }
     }
+  } catch { /* meta tags not available */ }
 
-    // Method 3: Drop-in global config
-    const dropinsConfig = (window as any).__dropins__?.config;
-    if (dropinsConfig?.commerceEndpoint) return dropinsConfig.commerceEndpoint;
-
-    return null;
-  } catch {
-    return null;
+  // Method 2: /configs.json (EDS standard config file)
+  if (!config["commerce-endpoint"]) {
+    try {
+      const res = await fetch("/configs.json");
+      if (res.ok) {
+        const json = await res.json();
+        const entries = json?.data ?? json?.[":names"]?.map((_: any, i: number) => json.data?.[i]) ?? [];
+        // configs.json can be array of {key, value} or nested structure
+        if (Array.isArray(entries)) {
+          for (const entry of entries) {
+            if (entry?.key && entry?.value) {
+              config[entry.key] = entry.value;
+            }
+          }
+        }
+      }
+    } catch { /* configs.json not available */ }
   }
+
+  // Method 3: Drop-in global config
+  try {
+    const dropins = (window as any).__dropins__?.config;
+    if (dropins) {
+      if (dropins.commerceEndpoint && !config["commerce-endpoint"]) config["commerce-endpoint"] = dropins.commerceEndpoint;
+      if (dropins.environmentId && !config["commerce-environment-id"]) config["commerce-environment-id"] = dropins.environmentId;
+    }
+  } catch { /* dropins not available */ }
+
+  cachedConfig = config;
+  return config;
 }
 
-function getStoreHeaders(): Record<string, string> {
+// ── GraphQL endpoint + headers ─────────────────────────────────
+
+async function getGraphQLEndpoint(): Promise<string | null> {
+  const config = await loadSiteConfig();
+  // Prefer catalog-service endpoint for search, fall back to core
+  return config["commerce-endpoint"] || config["commerce-core-endpoint"] || null;
+}
+
+async function getStoreHeaders(): Promise<Record<string, string>> {
+  const config = await loadSiteConfig();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
 
-  try {
-    // Store code from meta tag
-    const storeMeta = document.querySelector('meta[name="store-code"]');
-    if (storeMeta?.getAttribute("content")) {
-      headers["Magento-Store-Code"] = storeMeta.getAttribute("content")!;
-    }
-
-    // Environment ID for Catalog Service
-    const envMeta = document.querySelector('meta[name="commerce-environment-id"]');
-    if (envMeta?.getAttribute("content")) {
-      headers["Magento-Environment-Id"] = envMeta.getAttribute("content")!;
-    }
-
-    // Website code
-    const websiteMeta = document.querySelector('meta[name="commerce-website-code"]');
-    if (websiteMeta?.getAttribute("content")) {
-      headers["Magento-Website-Code"] = websiteMeta.getAttribute("content")!;
-    }
-  } catch { /* meta tags not available */ }
+  if (config["store-code"]) headers["Magento-Store-Code"] = config["store-code"];
+  if (config["store-view-code"]) headers["Magento-Store-View-Code"] = config["store-view-code"];
+  if (config["commerce-environment-id"]) headers["Magento-Environment-Id"] = config["commerce-environment-id"];
+  if (config["commerce-website-code"]) headers["Magento-Website-Code"] = config["commerce-website-code"];
+  if (config["commerce-x-api-key"]) headers["x-api-key"] = config["commerce-x-api-key"];
 
   return headers;
 }
@@ -124,23 +146,32 @@ const PRODUCT_QUERY = `
 // ── GraphQL fetch helper ───────────────────────────────────────
 
 async function gqlFetch<T>(query: string, variables: Record<string, any>): Promise<T | null> {
-  const endpoint = getGraphQLEndpoint();
+  const endpoint = await getGraphQLEndpoint();
   if (!endpoint) {
-    console.warn("[Agentikas] No GraphQL endpoint found for Adobe Commerce EDS");
+    console.warn("[Agentikas] No GraphQL endpoint found for Adobe Commerce EDS. Check /configs.json or commerce-endpoint meta tag.");
     return null;
   }
+
+  const headers = await getStoreHeaders();
 
   try {
     const res = await fetch(endpoint, {
       method: "POST",
-      headers: getStoreHeaders(),
+      headers,
       body: JSON.stringify({ query, variables }),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`[Agentikas] GraphQL request failed: ${res.status} ${res.statusText}`);
+      return null;
+    }
     const json = await res.json();
+    if (json.errors?.length) {
+      console.warn("[Agentikas] GraphQL errors:", json.errors.map((e: any) => e.message).join(", "));
+    }
     return json.data ?? null;
-  } catch {
+  } catch (err) {
+    console.warn("[Agentikas] GraphQL fetch error:", err);
     return null;
   }
 }
@@ -275,16 +306,17 @@ export const adobeEdsRetailPlatform: PlatformAdapter<RetailData> = {
         }
       }
 
-      // Fallback: GraphQL mutation
-      const endpoint = getGraphQLEndpoint();
+      // Fallback: GraphQL mutation via core endpoint
+      const endpoint = await getGraphQLEndpoint();
       if (!endpoint) {
         return { content: [{ type: "text" as const, text: "Cannot add to cart: no commerce endpoint found." }] };
       }
 
+      const headers = await getStoreHeaders();
       try {
         const cartRes = await fetch(endpoint, {
           method: "POST",
-          headers: getStoreHeaders(),
+          headers,
           body: JSON.stringify({
             query: `mutation { createEmptyCart }`,
           }),
@@ -298,7 +330,7 @@ export const adobeEdsRetailPlatform: PlatformAdapter<RetailData> = {
 
         await fetch(endpoint, {
           method: "POST",
-          headers: getStoreHeaders(),
+          headers,
           body: JSON.stringify({
             query: `mutation addToCart($cartId: String!, $items: [CartItemInput!]!) {
               addProductsToCart(cartId: $cartId, cartItems: $items) {
