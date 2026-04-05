@@ -13,6 +13,11 @@ export interface EdsProductView {
   urlKey?: string;
   description?: string;
   shortDescription?: string;
+  // SimpleProductView has price, ComplexProductView has priceRange
+  price?: {
+    regular?: { amount?: { value: number; currency: string } };
+    final?: { amount?: { value: number; currency: string } };
+  };
   priceRange?: {
     minimum?: {
       regular?: { amount?: { value: number; currency: string } };
@@ -146,12 +151,15 @@ const SEARCH_QUERY = `
           sku
           urlKey
           shortDescription
-          priceRange {
-            minimum { regular { amount { value currency } } final { amount { value currency } } }
-          }
           images(roles: ["image"]) { url label }
           attributes(roles: ["visible_in_storefront"]) { name value }
           inStock
+          ... on SimpleProductView {
+            price { regular { amount { value currency } } final { amount { value currency } } }
+          }
+          ... on ComplexProductView {
+            priceRange { minimum { regular { amount { value currency } } final { amount { value currency } } } }
+          }
         }
       }
       total_count
@@ -167,12 +175,15 @@ const PRODUCT_QUERY = `
       urlKey
       description
       shortDescription
-      priceRange {
-        minimum { regular { amount { value currency } } final { amount { value currency } } }
-      }
       images(roles: ["image"]) { url label }
       attributes(roles: ["visible_in_storefront"]) { name value }
       inStock
+      ... on SimpleProductView {
+        price { regular { amount { value currency } } final { amount { value currency } } }
+      }
+      ... on ComplexProductView {
+        priceRange { minimum { regular { amount { value currency } } final { amount { value currency } } } }
+      }
     }
   }
 `;
@@ -221,8 +232,8 @@ export function normalizeEdsProduct(raw: EdsProductView): Product {
   return {
     id: raw.sku,
     name: raw.name,
-    price: raw.priceRange?.minimum?.final?.amount?.value ?? raw.priceRange?.minimum?.regular?.amount?.value ?? 0,
-    currency: raw.priceRange?.minimum?.regular?.amount?.currency ?? raw.priceRange?.minimum?.final?.amount?.currency ?? "USD",
+    price: raw.price?.final?.amount?.value ?? raw.price?.regular?.amount?.value ?? raw.priceRange?.minimum?.final?.amount?.value ?? raw.priceRange?.minimum?.regular?.amount?.value ?? 0,
+    currency: raw.price?.regular?.amount?.currency ?? raw.priceRange?.minimum?.regular?.amount?.currency ?? "USD",
     sizes: sizeAttr ? sizeAttr.value.split(",").map((s) => s.trim()) : [],
     color: colorAttr?.value ?? "",
     inStock: raw.inStock ?? true,
