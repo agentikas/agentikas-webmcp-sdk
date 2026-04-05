@@ -50,8 +50,45 @@ export function detectShopifyCurrency(fallback: string = "EUR"): string {
   }
 }
 
-// ── Normalizer ─────────────────────────────────────────────────
+// ── Shopify search suggest types (from /search/suggest.json) ────
 
+export interface ShopifySearchProduct {
+  id: number;
+  title: string;
+  handle: string;
+  body: string;
+  available: boolean;
+  price: string;
+  price_min: string;
+  price_max: string;
+  type: string;
+  tags: string[];
+  url: string;
+  vendor: string;
+  image: string;
+  featured_image?: { url: string; alt: string };
+  variants: any[];
+}
+
+// ── Normalizers ────────────────────────────────────────────────
+
+/** Normalize search suggest result → Product */
+export function normalizeShopifySearchProduct(raw: ShopifySearchProduct, currency?: string): Product {
+  const resolvedCurrency = currency ?? detectShopifyCurrency();
+  return {
+    id: raw.handle,
+    name: raw.title,
+    price: parseFloat(raw.price ?? "0"),
+    currency: resolvedCurrency,
+    sizes: [],
+    color: "",
+    inStock: raw.available,
+    imageUrl: raw.featured_image?.url ?? raw.image,
+    description: raw.body?.replace(/<[^>]*>/g, "").slice(0, 200) || undefined,
+  };
+}
+
+/** Normalize full product detail → Product (from /products/handle.json) */
 export function normalizeShopifyProduct(raw: ShopifyProduct, currency?: string): Product {
   const resolvedCurrency = currency ?? detectShopifyCurrency();
   const sizeOption = raw.options.find(
@@ -86,8 +123,8 @@ export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
       const storeName = (data as any)?.store?.name || "";
       const res = await fetch(`/search/suggest.json?q=${encodeURIComponent(query)}&resources[type]=product&resources[limit]=10`);
       const json = await res.json();
-      const rawProducts: ShopifyProduct[] = json.resources?.results?.products ?? [];
-      const products = rawProducts.map((p) => normalizeShopifyProduct(p, currency));
+      const rawProducts: ShopifySearchProduct[] = json.resources?.results?.products ?? [];
+      const products = rawProducts.map((p) => normalizeShopifySearchProduct(p, currency));
       const inStock = products.filter((p) => p.inStock);
 
       if (inStock.length === 0) {
