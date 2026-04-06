@@ -141,11 +141,35 @@ export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
         return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
       }
       const json = await res.json();
-      const product = normalizeShopifyProduct(json.product, currency);
+      const raw: ShopifyProduct = json.product;
+      const description = raw.body_html?.replace(/<[^>]*>/g, "").slice(0, 200) || "";
+
+      // Build options summary (e.g. "Size: S, M, L, XL | Color: Red, Blue")
+      const optionsSummary = (raw.options ?? [])
+        .filter((o) => o.name.toLowerCase() !== "title")
+        .map((o) => `${o.name}: ${o.values.join(", ")}`)
+        .join("\n");
+
+      // Build variants table with availability and price
+      const variantsList = (raw.variants ?? [])
+        .map((v) => {
+          const options = [v.option1, v.option2, v.option3].filter(Boolean).join(" / ");
+          const status = v.available ? "In stock" : "Out of stock";
+          return `  - ${options || "Default"} — ${currency} ${parseFloat(v.price).toFixed(2)} (${status}) [variant_id: ${v.id}]`;
+        })
+        .join("\n");
+
+      const hasVariants = raw.variants.length > 1 || (raw.variants.length === 1 && raw.variants[0].title !== "Default Title");
+
       return {
         content: [{
           type: "text" as const,
-          text: `# ${product.name}\n\nPrice: ${product.currency} ${product.price.toFixed(2)}\nSizes: ${product.sizes.join(", ")}\nColor: ${product.color}\nIn stock: ${product.inStock ? "Yes" : "No"}${product.description ? `\n\n${product.description}` : ""}`,
+          text: `# ${raw.title}\n\n` +
+            (description ? `${description}\n\n` : "") +
+            (optionsSummary ? `## Options\n${optionsSummary}\n\n` : "") +
+            (hasVariants
+              ? `## Variants\n${variantsList}\n\nTo add to cart, use add_to_cart with the product_id "${product_id}" and specify the variant option (e.g. size or color).`
+              : `Price: ${currency} ${parseFloat(raw.variants[0]?.price ?? "0").toFixed(2)}\nIn stock: ${raw.variants[0]?.available ? "Yes" : "No"}`),
         }],
       };
     },
@@ -158,14 +182,35 @@ export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
       }
       const json = await res.json();
       const raw: ShopifyProduct = json.product;
-      const variant = raw.variants.find(
-        (v) => (v.option1?.toLowerCase() === size.toLowerCase() || v.option2?.toLowerCase() === size.toLowerCase()) && v.available,
+
+      // Match variant by any option (case-insensitive)
+      const matching = raw.variants.filter(
+        (v) => [v.option1, v.option2, v.option3].some(
+          (opt) => opt?.toLowerCase() === size.toLowerCase(),
+        ),
       );
-      if (!variant) {
-        const product = normalizeShopifyProduct(raw, currency);
-        return { content: [{ type: "text" as const, text: `Size ${size} is not available for ${product.name}. Available: ${product.sizes.join(", ")}` }] };
+
+      if (matching.length === 0) {
+        const allOptions = raw.options
+          .filter((o) => o.name.toLowerCase() !== "title")
+          .map((o) => `${o.name}: ${o.values.join(", ")}`)
+          .join(" | ");
+        return { content: [{ type: "text" as const, text: `"${size}" is not a valid option for ${raw.title}. Available: ${allOptions}` }] };
       }
-      return { content: [{ type: "text" as const, text: `${raw.title} in size ${size} is available. Price: ${currency} ${parseFloat(variant.price).toFixed(2)}` }] };
+
+      const available = matching.filter((v) => v.available);
+      if (available.length === 0) {
+        return { content: [{ type: "text" as const, text: `${raw.title} in "${size}" is out of stock.` }] };
+      }
+
+      const list = available
+        .map((v) => {
+          const opts = [v.option1, v.option2, v.option3].filter(Boolean).join(" / ");
+          return `  - ${opts} — ${currency} ${parseFloat(v.price).toFixed(2)} [variant_id: ${v.id}]`;
+        })
+        .join("\n");
+
+      return { content: [{ type: "text" as const, text: `${raw.title} "${size}" available:\n${list}` }] };
     },
 
     add_to_cart: (data) => async ({ product_id, size, quantity = 1 }: { product_id: string; size: string; quantity?: number }) => {
@@ -176,18 +221,50 @@ export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
       }
       const json = await prodRes.json();
       const raw: ShopifyProduct = json.product;
-      const variant = raw.variants.find(
-        (v) => (v.option1?.toLowerCase() === size.toLowerCase() || v.option2?.toLowerCase() === size.toLowerCase()) && v.available,
+
+      // Find matching variant — try exact match on any option, or variant_id if numeric
+      let variant = raw.variants.find(
+        (v) => [v.option1, v.option2, v.option3].some(
+          (opt) => opt?.toLowerCase() === size.toLowerCase(),
+        ) && v.available,
       );
-      if (!variant) {
-        return { content: [{ type: "text" as const, text: `${raw.title} in size ${size} is not available.` }] };
+
+      // If size looks like a variant ID (numeric), match by ID
+      if (!variant && /^\d+$/.test(size)) {
+        variant = raw.variants.find((v) => v.id === parseInt(size) && v.available);
       }
+
+      // If only one variant (no options), use it
+      if (!variant && raw.variants.length === 1 && raw.variants[0].available) {
+        variant = raw.variants[0];
+      }
+
+      if (!variant) {
+        const options = raw.options
+          .filter((o) => o.name.toLowerCase() !== "title")
+          .map((o) => `${o.name}: ${o.values.join(", ")}`)
+          .join(" | ");
+        return {
+          content: [{
+            type: "text" as const,
+            text: `Cannot add "${size}" to cart. ${options ? `Available options: ${options}` : "No available variants."}\n\nUse get_product("${product_id}") to see all variants with their variant_ids.`,
+          }],
+        };
+      }
+
       await fetch("/cart/add.js", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: [{ id: variant.id, quantity }] }),
       });
-      return { content: [{ type: "text" as const, text: `Added ${quantity}x ${raw.title} (size ${size}) to cart. Price: ${currency} ${parseFloat(variant.price).toFixed(2)}` }] };
+
+      const opts = [variant.option1, variant.option2, variant.option3].filter(Boolean).join(" / ");
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Added ${quantity}x ${raw.title} (${opts || "default"}) to cart. Price: ${currency} ${parseFloat(variant.price).toFixed(2)}`,
+        }],
+      };
     },
   },
 };
