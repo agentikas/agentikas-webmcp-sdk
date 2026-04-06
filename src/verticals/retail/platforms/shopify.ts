@@ -116,7 +116,7 @@ export function normalizeShopifyProduct(raw: ShopifyProduct, currency?: string):
     sizes: sizeOption?.values ?? [],
     color: colorOption?.values[0] ?? "",
     inStock: raw.variants.some(isVariantAvailable),
-    imageUrl: raw.images[0]?.src,
+    imageUrl: raw.images?.[0]?.src,
     description: raw.body_html?.replace(/<[^>]*>/g, "").slice(0, 200) || undefined,
   };
 }
