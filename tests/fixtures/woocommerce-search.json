@@ -1,0 +1,71 @@
+[
+  {
+    "id": 456,
+    "name": "Slim Fit Dark Jeans",
+    "slug": "slim-fit-dark-jeans",
+    "description": "<p>Premium denim jeans.</p>",
+    "short_description": "<p>Slim fit jeans in dark blue.</p>",
+    "prices": {
+      "price": "7999",
+      "currency_code": "EUR",
+      "currency_minor_unit": 2
+    },
+    "images": [
+      { "src": "https://store.example.com/jeans.jpg", "alt": "Jeans" }
+    ],
+    "attributes": [
+      {
+        "id": 1,
+        "name": "Size",
+        "taxonomy": "pa_size",
+        "has_variations": true,
+        "terms": [
+          { "id": 10, "name": "28", "slug": "28" },
+          { "id": 11, "name": "30", "slug": "30" }
+        ]
+      }
+    ],
+    "is_in_stock": true,
+    "is_purchasable": true
+  },
+  {
+    "id": 789,
+    "name": "Classic White T-Shirt",
+    "slug": "classic-white-tshirt",
+    "description": "<p>Organic cotton t-shirt.</p>",
+    "short_description": "<p>Comfortable everyday tee.</p>",
+    "prices": {
+      "price": "2999",
+      "currency_code": "EUR",
+      "currency_minor_unit": 2
+    },
+    "images": [
+      { "src": "https://store.example.com/tshirt.jpg", "alt": "T-Shirt" }
+    ],
+    "attributes": [
+      {
+        "id": 1,
+        "name": "Size",
+        "taxonomy": "pa_size",
+        "has_variations": true,
+        "terms": [
+          { "id": 10, "name": "S", "slug": "s" },
+          { "id": 11, "name": "M", "slug": "m" },
+          { "id": 12, "name": "L", "slug": "l" }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "Color",
+        "taxonomy": "pa_color",
+        "has_variations": true,
+        "terms": [
+          { "id": 20, "name": "White", "slug": "white" },
+          { "id": 21, "name": "Black", "slug": "black" }
+        ]
+      }
+    ],
+    "is_in_stock": true,
+    "is_purchasable": true
+  }
+]
