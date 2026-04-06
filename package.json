@@ -13,12 +13,15 @@
     "build": "esbuild src/loader.ts --bundle --minify --format=iife --outfile=dist/webmcp.js",
     "build:watch": "esbuild src/loader.ts --bundle --format=iife --outfile=dist/webmcp.js --watch",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
   },
   "peerDependencies": {
     "react": ">=18.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^18.3.0",
     "esbuild": "^0.27.4",
