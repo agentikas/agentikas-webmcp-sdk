@@ -126,6 +126,12 @@ export function normalizeShopifyProduct(raw: ShopifyProduct, currency?: string):
 // ── Navigation helper ──────────────────────────────────────────
 
 function navigateTo(url: string): void {
+  // Check URL param: ?navigation=false disables navigation
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("navigation") === "false") return;
+  } catch { /* URL parsing not available */ }
+  // Check config
   const config = (window as any).__agentikas_config;
   if (!config?.navigate) return;
   // Delay navigation so the tool result is returned first

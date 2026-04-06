@@ -1,0 +1,17 @@
+{
+    "data": {
+        "products": null
+    },
+    "errors": [
+        {
+            "message": "Missing catalog, header: Magento-Website-Code",
+            "path": [
+                "products"
+            ],
+            "extensions": {
+                "classification": "DataFetchingException",
+                "service": "catalog"
+            }
+        }
+    ]
+}

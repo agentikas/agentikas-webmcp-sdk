@@ -7,7 +7,31 @@ import type { Product, RetailData } from "../types";
 
 // ── EDS GraphQL response types ─────────────────────────────────
 
-// Commerce core "product" fragment (price_range, small_image)
+// Unified ProductView (handles both endpoint types)
+export interface EdsProductView {
+  name?: string;
+  sku?: string;
+  urlKey?: string;
+  description?: string;
+  shortDescription?: string;
+  inStock?: boolean;
+  images?: Array<{ url: string; label?: string }>;
+  attributes?: Array<{ name: string; value: string }>;
+  // SimpleProductView
+  price?: {
+    regular?: { amount?: { value: number; currency: string } };
+    final?: { amount?: { value: number; currency: string } };
+  };
+  // ComplexProductView
+  priceRange?: {
+    minimum?: {
+      regular?: { amount?: { value: number; currency: string } };
+      final?: { amount?: { value: number; currency: string } };
+    };
+  };
+}
+
+// Commerce core "product" fragment (only on catalog-service.adobe.io)
 export interface EdsProduct {
   __typename?: string;
   sku: string;
@@ -22,18 +46,9 @@ export interface EdsProduct {
   };
 }
 
-// Catalog Service "productView" fragment (inStock, attributes)
-export interface EdsProductView {
-  urlKey?: string;
-  inStock?: boolean;
-  description?: string;
-  shortDescription?: string;
-  attributes?: Array<{ name: string; value: string }>;
-}
-
-// Combined search result item
+// Search result item — may have product + productView or just productView
 export interface EdsSearchItem {
-  product: EdsProduct;
+  product?: EdsProduct;
   productView?: EdsProductView;
 }
 
@@ -96,12 +111,13 @@ async function getMerchantConfig(): Promise<MerchantConfig | null> {
         for (const e of entries) {
           if (e?.key && e?.value) configMap[e.key] = e.value;
         }
-        raw.environmentId = raw.environmentId || configMap["commerce-environment-id"] || "";
-        raw.storeCode = raw.storeCode || configMap["commerce-store-code"] || configMap["store-code"] || "";
-        raw.storeViewCode = raw.storeViewCode || configMap["commerce-store-view-code"] || configMap["store-view-code"] || "";
-        raw.websiteCode = raw.websiteCode || configMap["commerce-website-code"] || "";
-        raw.apiKey = raw.apiKey || configMap["commerce-x-api-key"] || "";
-        raw.customerGroup = raw.customerGroup || configMap["commerce-customer-group"] || "";
+        // Handle both flat keys (commerce-store-code) and nested keys (commerce.headers.cs.Magento-Store-Code)
+        raw.environmentId = raw.environmentId || configMap["commerce-environment-id"] || configMap["commerce.headers.cs.Magento-Environment-Id"] || "";
+        raw.storeCode = raw.storeCode || configMap["commerce-store-code"] || configMap["store-code"] || configMap["commerce.headers.cs.Magento-Store-Code"] || "";
+        raw.storeViewCode = raw.storeViewCode || configMap["commerce-store-view-code"] || configMap["store-view-code"] || configMap["commerce.headers.cs.Magento-Store-View-Code"] || "";
+        raw.websiteCode = raw.websiteCode || configMap["commerce-website-code"] || configMap["commerce.headers.cs.Magento-Website-Code"] || "";
+        raw.apiKey = raw.apiKey || configMap["commerce-x-api-key"] || configMap["commerce.headers.cs.x-api-key"] || "";
+        raw.customerGroup = raw.customerGroup || configMap["commerce-customer-group"] || configMap["commerce.headers.cs.Magento-Customer-Group"] || "";
         raw.coreEndpoint = raw.coreEndpoint || configMap["commerce-core-endpoint"] || "";
         raw.catalogEndpoint = raw.catalogEndpoint || configMap["commerce-endpoint"] || "";
       }
@@ -117,8 +133,8 @@ async function getMerchantConfig(): Promise<MerchantConfig | null> {
     }
   } catch { /* no dropins */ }
 
-  if (!raw.environmentId) {
-    console.warn("[Agentikas] No commerce-environment-id found. Adobe EDS adapter requires merchant config.");
+  if (!raw.environmentId && !raw.catalogEndpoint && !raw.coreEndpoint) {
+    console.warn("[Agentikas] No commerce config found. Adobe EDS adapter needs at least an endpoint or environment-id.");
     return null;
   }
 
@@ -155,44 +171,66 @@ function getCoreEndpoint(merchant: MerchantConfig): string | null {
 }
 
 function buildHeaders(merchant: MerchantConfig): Record<string, string> {
-  return {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "Magento-Environment-Id": merchant.environmentId,
     "Magento-Store-Code": merchant.storeCode,
     "Magento-Store-View-Code": merchant.storeViewCode,
     "Magento-Website-Code": merchant.websiteCode,
-    "x-api-key": merchant.apiKey,
   };
+  if (merchant.environmentId) headers["Magento-Environment-Id"] = merchant.environmentId;
+  if (merchant.apiKey) headers["x-api-key"] = merchant.apiKey;
+  if (merchant.customerGroup) headers["Magento-Customer-Group"] = merchant.customerGroup;
+  return headers;
 }
 
 // ── GraphQL queries ────────────────────────────────────────────
-
-// Queries use the "product" field (Commerce core schema) + "productView" for stock/attributes.
-// Same pattern as the EDS storefront's LiveSearchAutocomplete.
-// Requires filter (visibility) + context (customerGroup) to return results.
+// Two endpoint types exist in Adobe Commerce EDS:
+// 1. catalog-service.adobe.io — supports both "product" and "productView"
+// 2. edge-sandbox-graph.adobe.io — only supports "productView"
+// We use productView with inline fragments (works on both).
 
 const SEARCH_QUERY = `
+  query productSearch($phrase: String!, $pageSize: Int) {
+    productSearch(phrase: $phrase, page_size: $pageSize) {
+      items {
+        productView {
+          name
+          sku
+          urlKey
+          shortDescription
+          images(roles: ["image"]) { url label }
+          attributes(roles: ["visible_in_storefront"]) { name value }
+          ... on SimpleProductView {
+            price { regular { amount { value currency } } final { amount { value currency } } }
+          }
+          ... on ComplexProductView {
+            priceRange { minimum { regular { amount { value currency } } final { amount { value currency } } } }
+          }
+        }
+      }
+      total_count
+    }
+  }
+`;
+
+// Fallback: same productView query but with filter + context params
+const SEARCH_QUERY_WITH_FILTER = `
   query productSearch($phrase: String!, $pageSize: Int, $filter: [SearchClauseInput!], $context: QueryContextInput) {
     productSearch(phrase: $phrase, page_size: $pageSize, filter: $filter, context: $context) {
       items {
-        product {
-          __typename
-          sku
-          name
-          small_image { url }
-          image { url }
-          price_range {
-            minimum_price {
-              regular_price { value currency }
-              final_price { value currency }
-            }
-          }
-        }
         productView {
+          name
+          sku
           urlKey
-          inStock
           shortDescription
+          images(roles: ["image"]) { url label }
           attributes(roles: ["visible_in_storefront"]) { name value }
+          ... on SimpleProductView {
+            price { regular { amount { value currency } } final { amount { value currency } } }
+          }
+          ... on ComplexProductView {
+            priceRange { minimum { regular { amount { value currency } } final { amount { value currency } } } }
+          }
         }
       }
       total_count
@@ -201,29 +239,20 @@ const SEARCH_QUERY = `
 `;
 
 const PRODUCT_BY_SKU_QUERY = `
-  query productSearch($phrase: String!, $filter: [SearchClauseInput!], $context: QueryContextInput) {
-    productSearch(phrase: $phrase, page_size: 1, filter: $filter, context: $context) {
-      items {
-        product {
-          __typename
-          sku
-          name
-          small_image { url }
-          image { url }
-          price_range {
-            minimum_price {
-              regular_price { value currency }
-              final_price { value currency }
-            }
-          }
-        }
-        productView {
-          urlKey
-          inStock
-          description
-          shortDescription
-          attributes(roles: ["visible_in_storefront"]) { name value }
-        }
+  query products($skus: [String!]!) {
+    products(skus: $skus) {
+      name
+      sku
+      urlKey
+      description
+      shortDescription
+      images(roles: ["image"]) { url label }
+      attributes(roles: ["visible_in_storefront"]) { name value }
+      ... on SimpleProductView {
+        price { regular { amount { value currency } } final { amount { value currency } } }
+      }
+      ... on ComplexProductView {
+        priceRange { minimum { regular { amount { value currency } } final { amount { value currency } } } }
       }
     }
   }
@@ -266,6 +295,10 @@ export function normalizeEdsSearchItem(item: EdsSearchItem): Product {
   const p = item.product;
   const v = item.productView;
 
+  // Use productView as primary, product as fallback (for catalog-service endpoints)
+  const sku = v?.sku ?? p?.sku ?? "";
+  const name = v?.name ?? p?.name ?? "";
+
   const sizeAttr = v?.attributes?.find(
     (a) => a.name.toLowerCase() === "size" || a.name.toLowerCase() === "talla",
   );
@@ -273,15 +306,27 @@ export function normalizeEdsSearchItem(item: EdsSearchItem): Product {
     (a) => a.name.toLowerCase() === "color" || a.name.toLowerCase() === "colour",
   );
 
+  // Price: try productView (SimpleProductView.price / ComplexProductView.priceRange) then product (price_range)
+  const price =
+    v?.price?.final?.amount?.value ?? v?.price?.regular?.amount?.value ??
+    v?.priceRange?.minimum?.final?.amount?.value ?? v?.priceRange?.minimum?.regular?.amount?.value ??
+    p?.price_range?.minimum_price?.final_price?.value ?? p?.price_range?.minimum_price?.regular_price?.value ?? 0;
+
+  const currency =
+    v?.price?.regular?.amount?.currency ?? v?.priceRange?.minimum?.regular?.amount?.currency ??
+    p?.price_range?.minimum_price?.regular_price?.currency ?? "USD";
+
+  const imageUrl = v?.images?.[0]?.url ?? p?.image?.url ?? p?.small_image?.url;
+
   return {
-    id: p.sku,
-    name: p.name,
-    price: p.price_range?.minimum_price?.final_price?.value ?? p.price_range?.minimum_price?.regular_price?.value ?? 0,
-    currency: p.price_range?.minimum_price?.regular_price?.currency ?? "USD",
+    id: sku,
+    name,
+    price,
+    currency,
     sizes: sizeAttr ? sizeAttr.value.split(",").map((s) => s.trim()) : [],
     color: colorAttr?.value ?? "",
     inStock: v?.inStock ?? true,
-    imageUrl: p.image?.url ?? p.small_image?.url,
+    imageUrl: imageUrl?.startsWith("//") ? `https:${imageUrl}` : imageUrl,
     description: (v?.shortDescription ?? v?.description ?? "").replace(/<[^>]*>/g, "").slice(0, 200) || undefined,
   };
 }
@@ -314,14 +359,22 @@ export const adobeEdsRetailPlatform: PlatformAdapter<RetailData> = {
       const storeName = (data as any)?.store?.name || "";
       const merchant = await getMerchantConfig();
 
-      const result = await gqlFetch<{
+      // Try simple query first (works on all endpoints)
+      let result = await gqlFetch<{
         productSearch: { items: EdsSearchItem[]; total_count: number };
-      }>(SEARCH_QUERY, {
-        phrase: query,
-        pageSize: 10,
-        filter: [{ attribute: "visibility", in: ["Search", "Catalog, Search"] }],
-        context: { customerGroup: merchant?.customerGroup || "", userViewHistory: [] },
-      });
+      }>(SEARCH_QUERY, { phrase: query, pageSize: 10 });
+
+      // If 0 results, retry with filter + context (needed for catalog-service.adobe.io)
+      if (!result?.productSearch?.items?.length && merchant?.customerGroup) {
+        result = await gqlFetch<{
+          productSearch: { items: EdsSearchItem[]; total_count: number };
+        }>(SEARCH_QUERY_WITH_FILTER, {
+          phrase: query,
+          pageSize: 10,
+          filter: [{ attribute: "visibility", in: ["Search", "Catalog, Search"] }],
+          context: { customerGroup: merchant.customerGroup, userViewHistory: [] },
+        });
+      }
 
       if (!result?.productSearch?.items?.length) {
         return { content: [{ type: "text" as const, text: `No products found for "${query}"${storeName ? ` at ${storeName}` : ""}.` }] };
@@ -343,20 +396,16 @@ export const adobeEdsRetailPlatform: PlatformAdapter<RetailData> = {
     get_product: (data) => async ({ product_id }: { product_id: string }) => {
       const merchant = await getMerchantConfig();
 
-      const result = await gqlFetch<{
-        productSearch: { items: EdsSearchItem[] };
-      }>(PRODUCT_BY_SKU_QUERY, {
-        phrase: product_id,
-        filter: [{ attribute: "sku", eq: product_id }],
-        context: { customerGroup: "", userViewHistory: [] },
-      });
+      const result = await gqlFetch<{ products: EdsProductView[] }>(
+        PRODUCT_BY_SKU_QUERY, { skus: [product_id] },
+      );
 
-      const item = result?.productSearch?.items?.[0];
-      if (!item) {
+      const raw = result?.products?.[0];
+      if (!raw) {
         return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
       }
 
-      const product = normalizeEdsSearchItem(item);
+      const product = normalizeEdsSearchItem({ productView: raw });
       return {
         content: [{
           type: "text" as const,
@@ -369,22 +418,16 @@ export const adobeEdsRetailPlatform: PlatformAdapter<RetailData> = {
     },
 
     check_stock: (data) => async ({ product_id, size }: { product_id: string; size: string }) => {
-      const merchant = await getMerchantConfig();
+      const result = await gqlFetch<{ products: EdsProductView[] }>(
+        PRODUCT_BY_SKU_QUERY, { skus: [product_id] },
+      );
 
-      const result = await gqlFetch<{
-        productSearch: { items: EdsSearchItem[] };
-      }>(PRODUCT_BY_SKU_QUERY, {
-        phrase: product_id,
-        filter: [{ attribute: "sku", eq: product_id }],
-        context: { customerGroup: "", userViewHistory: [] },
-      });
-
-      const item = result?.productSearch?.items?.[0];
-      if (!item) {
+      const raw = result?.products?.[0];
+      if (!raw) {
         return { content: [{ type: "text" as const, text: `Product "${product_id}" not found.` }] };
       }
 
-      const product = normalizeEdsSearchItem(item);
+      const product = normalizeEdsSearchItem({ productView: raw });
       if (!product.inStock) {
         return { content: [{ type: "text" as const, text: `${product.name} is currently out of stock.` }] };
       }
@@ -395,41 +438,45 @@ export const adobeEdsRetailPlatform: PlatformAdapter<RetailData> = {
     },
 
     add_to_cart: (data) => async ({ product_id, size, quantity = 1 }: { product_id: string; size: string; quantity?: number }) => {
-      // Try Drop-in Cart API first (available on EDS storefronts with cart drop-in)
-      const Cart = (window as any).__dropins__?.storefront?.cart?.api;
-      if (Cart?.addProductsToCart) {
-        try {
-          await Cart.addProductsToCart([{ sku: product_id, quantity }]);
-          return { content: [{ type: "text" as const, text: `Added ${quantity}x ${product_id} (size ${size}) to cart.` }] };
-        } catch (err) {
-          return { content: [{ type: "text" as const, text: `Failed to add to cart: ${err instanceof Error ? err.message : "unknown error"}` }] };
-        }
-      }
-
-      // Fallback: GraphQL mutation via core endpoint
       const merchant = await getMerchantConfig();
-      const endpoint = merchant?.coreEndpoint;
-      if (!endpoint) {
-        return { content: [{ type: "text" as const, text: "Cannot add to cart: no commerce core endpoint found." }] };
-      }
+      const endpoint = getCatalogEndpoint(merchant!);
+      const headers = buildHeaders(merchant!);
 
-      const headers = buildHeaders(merchant);
       try {
-        const cartRes = await fetch(endpoint, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            query: `mutation { createEmptyCart }`,
-          }),
-        });
-        const cartData = await cartRes.json();
-        const cartId = cartData?.data?.createEmptyCart;
+        // 1. Try to get existing cart ID from the store's event bus cache
+        let cartId: string | null = (window as any).__agentikas_cart_id ?? null;
+
+        // 2. If no cached cart, listen for cart/data event or create new
+        if (!cartId) {
+          // Try to create a new guest cart
+          const guestCartRes = await fetch(endpoint, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ query: `mutation { createGuestCart { cart { id } } }` }),
+          });
+          const guestCartData = await guestCartRes.json();
+          cartId = guestCartData?.data?.createGuestCart?.cart?.id;
+
+          if (!cartId) {
+            const emptyCartRes = await fetch(endpoint, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ query: `mutation { createEmptyCart }` }),
+            });
+            const emptyCartData = await emptyCartRes.json();
+            cartId = emptyCartData?.data?.createEmptyCart;
+          }
+        }
 
         if (!cartId) {
           return { content: [{ type: "text" as const, text: "Failed to create cart." }] };
         }
 
-        await fetch(endpoint, {
+        // Cache cart ID for subsequent calls
+        (window as any).__agentikas_cart_id = cartId;
+
+        // 3. Add product to cart
+        const addRes = await fetch(endpoint, {
           method: "POST",
           headers,
           body: JSON.stringify({
@@ -438,16 +485,25 @@ export const adobeEdsRetailPlatform: PlatformAdapter<RetailData> = {
                 cart { total_quantity }
               }
             }`,
-            variables: {
-              cartId,
-              items: [{ sku: product_id, quantity }],
-            },
+            variables: { cartId, items: [{ sku: product_id, quantity }] },
           }),
         });
+        const addData = await addRes.json();
 
-        return { content: [{ type: "text" as const, text: `Added ${quantity}x ${product_id} (size ${size}) to cart.` }] };
-      } catch {
-        return { content: [{ type: "text" as const, text: "Failed to add product to cart." }] };
+        if (addData?.errors?.length) {
+          return { content: [{ type: "text" as const, text: `Failed to add to cart: ${addData.errors[0].message}` }] };
+        }
+
+        const totalQty = addData?.data?.addProductsToCart?.cart?.total_quantity ?? quantity;
+
+        // 4. Notify the store's UI to refresh cart (via custom event)
+        try {
+          window.dispatchEvent(new CustomEvent("agentikas:cart-updated", { detail: { cartId, totalQuantity: totalQty } }));
+        } catch { /* event dispatch not critical */ }
+
+        return { content: [{ type: "text" as const, text: `Added ${quantity}x ${product_id} (${size}) to cart. Cart total: ${totalQty} item(s).` }] };
+      } catch (err) {
+        return { content: [{ type: "text" as const, text: `Failed to add to cart: ${err instanceof Error ? err.message : "unknown error"}` }] };
       }
     },
   },
