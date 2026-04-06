@@ -449,30 +449,39 @@ export const adobeEdsRetailPlatform: PlatformAdapter<RetailData> = {
         }
       }
 
-      // Fallback: GraphQL mutation via core endpoint
+      // Fallback: GraphQL mutations via endpoint
       const merchant = await getMerchantConfig();
-      const endpoint = merchant?.coreEndpoint;
-      if (!endpoint) {
-        return { content: [{ type: "text" as const, text: "Cannot add to cart: no commerce core endpoint found." }] };
-      }
+      const endpoint = getCatalogEndpoint(merchant!);
+      const headers = buildHeaders(merchant!);
 
-      const headers = buildHeaders(merchant);
       try {
-        const cartRes = await fetch(endpoint, {
+        // Create cart: try createGuestCart first, fallback to createEmptyCart
+        let cartId: string | null = null;
+
+        const guestCartRes = await fetch(endpoint, {
           method: "POST",
           headers,
-          body: JSON.stringify({
-            query: `mutation { createEmptyCart }`,
-          }),
+          body: JSON.stringify({ query: `mutation { createGuestCart { cart { id } } }` }),
         });
-        const cartData = await cartRes.json();
-        const cartId = cartData?.data?.createEmptyCart;
+        const guestCartData = await guestCartRes.json();
+        cartId = guestCartData?.data?.createGuestCart?.cart?.id;
+
+        if (!cartId) {
+          // Fallback: createEmptyCart (older schema)
+          const emptyCartRes = await fetch(endpoint, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ query: `mutation { createEmptyCart }` }),
+          });
+          const emptyCartData = await emptyCartRes.json();
+          cartId = emptyCartData?.data?.createEmptyCart;
+        }
 
         if (!cartId) {
           return { content: [{ type: "text" as const, text: "Failed to create cart." }] };
         }
 
-        await fetch(endpoint, {
+        const addRes = await fetch(endpoint, {
           method: "POST",
           headers,
           body: JSON.stringify({
@@ -481,16 +490,19 @@ export const adobeEdsRetailPlatform: PlatformAdapter<RetailData> = {
                 cart { total_quantity }
               }
             }`,
-            variables: {
-              cartId,
-              items: [{ sku: product_id, quantity }],
-            },
+            variables: { cartId, items: [{ sku: product_id, quantity }] },
           }),
         });
+        const addData = await addRes.json();
 
-        return { content: [{ type: "text" as const, text: `Added ${quantity}x ${product_id} (size ${size}) to cart.` }] };
-      } catch {
-        return { content: [{ type: "text" as const, text: "Failed to add product to cart." }] };
+        if (addData?.errors?.length) {
+          return { content: [{ type: "text" as const, text: `Failed to add to cart: ${addData.errors[0].message}` }] };
+        }
+
+        const totalQty = addData?.data?.addProductsToCart?.cart?.total_quantity ?? quantity;
+        return { content: [{ type: "text" as const, text: `Added ${quantity}x ${product_id} (size ${size}) to cart. Cart total: ${totalQty} item(s).` }] };
+      } catch (err) {
+        return { content: [{ type: "text" as const, text: `Failed to add to cart: ${err instanceof Error ? err.message : "unknown error"}` }] };
       }
     },
   },

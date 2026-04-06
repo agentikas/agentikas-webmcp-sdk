@@ -4,7 +4,7 @@
 
 import { test, expect } from "@playwright/test";
 
-const SDK_URL = "https://cdn.agentikas.ai/webmcp.0.10.1.min.js";
+const SDK_URL = "https://cdn.agentikas.ai/webmcp.0.10.3.min.js";
 const STORE_URL = "https://main--accs-adobe-store--demo-system-stores.aem.live/";
 
 async function injectSDK(page: any) {
@@ -72,5 +72,19 @@ test.describe("Adobe EDS E2E: search and product", () => {
     const result = await executeTool(page, "get_product", { product_id: "ADB169" });
     const text = result.content[0].text;
     expect(text).toContain("ADB169");
+  });
+
+  test("add_to_cart adds product successfully", async ({ page }) => {
+    await page.goto(STORE_URL);
+    await injectSDK(page);
+
+    const result = await executeTool(page, "add_to_cart", {
+      product_id: "ADB169",
+      size: "Default",
+      quantity: 1,
+    });
+    const text = result.content[0].text;
+    expect(text).toContain("Added");
+    expect(text).toContain("cart");
   });
 });
