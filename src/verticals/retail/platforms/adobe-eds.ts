@@ -438,49 +438,44 @@ export const adobeEdsRetailPlatform: PlatformAdapter<RetailData> = {
     },
 
     add_to_cart: (data) => async ({ product_id, size, quantity = 1 }: { product_id: string; size: string; quantity?: number }) => {
-      // Try Drop-in Cart API first (available on EDS storefronts with cart drop-in)
-      const Cart = (window as any).__dropins__?.storefront?.cart?.api;
-      if (Cart?.addProductsToCart) {
-        try {
-          await Cart.addProductsToCart([{ sku: product_id, quantity }]);
-          return { content: [{ type: "text" as const, text: `Added ${quantity}x ${product_id} (size ${size}) to cart.` }] };
-        } catch (err) {
-          return { content: [{ type: "text" as const, text: `Failed to add to cart: ${err instanceof Error ? err.message : "unknown error"}` }] };
-        }
-      }
-
-      // Fallback: GraphQL mutations via endpoint
       const merchant = await getMerchantConfig();
       const endpoint = getCatalogEndpoint(merchant!);
       const headers = buildHeaders(merchant!);
 
       try {
-        // Create cart: try createGuestCart first, fallback to createEmptyCart
-        let cartId: string | null = null;
+        // 1. Try to get existing cart ID from the store's event bus cache
+        let cartId: string | null = (window as any).__agentikas_cart_id ?? null;
 
-        const guestCartRes = await fetch(endpoint, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ query: `mutation { createGuestCart { cart { id } } }` }),
-        });
-        const guestCartData = await guestCartRes.json();
-        cartId = guestCartData?.data?.createGuestCart?.cart?.id;
-
+        // 2. If no cached cart, listen for cart/data event or create new
         if (!cartId) {
-          // Fallback: createEmptyCart (older schema)
-          const emptyCartRes = await fetch(endpoint, {
+          // Try to create a new guest cart
+          const guestCartRes = await fetch(endpoint, {
             method: "POST",
             headers,
-            body: JSON.stringify({ query: `mutation { createEmptyCart }` }),
+            body: JSON.stringify({ query: `mutation { createGuestCart { cart { id } } }` }),
           });
-          const emptyCartData = await emptyCartRes.json();
-          cartId = emptyCartData?.data?.createEmptyCart;
+          const guestCartData = await guestCartRes.json();
+          cartId = guestCartData?.data?.createGuestCart?.cart?.id;
+
+          if (!cartId) {
+            const emptyCartRes = await fetch(endpoint, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ query: `mutation { createEmptyCart }` }),
+            });
+            const emptyCartData = await emptyCartRes.json();
+            cartId = emptyCartData?.data?.createEmptyCart;
+          }
         }
 
         if (!cartId) {
           return { content: [{ type: "text" as const, text: "Failed to create cart." }] };
         }
 
+        // Cache cart ID for subsequent calls
+        (window as any).__agentikas_cart_id = cartId;
+
+        // 3. Add product to cart
         const addRes = await fetch(endpoint, {
           method: "POST",
           headers,
@@ -500,7 +495,13 @@ export const adobeEdsRetailPlatform: PlatformAdapter<RetailData> = {
         }
 
         const totalQty = addData?.data?.addProductsToCart?.cart?.total_quantity ?? quantity;
-        return { content: [{ type: "text" as const, text: `Added ${quantity}x ${product_id} (size ${size}) to cart. Cart total: ${totalQty} item(s).` }] };
+
+        // 4. Notify the store's UI to refresh cart (via custom event)
+        try {
+          window.dispatchEvent(new CustomEvent("agentikas:cart-updated", { detail: { cartId, totalQuantity: totalQty } }));
+        } catch { /* event dispatch not critical */ }
+
+        return { content: [{ type: "text" as const, text: `Added ${quantity}x ${product_id} (${size}) to cart. Cart total: ${totalQty} item(s).` }] };
       } catch (err) {
         return { content: [{ type: "text" as const, text: `Failed to add to cart: ${err instanceof Error ? err.message : "unknown error"}` }] };
       }
