@@ -1,0 +1,107 @@
+{
+    "product": {
+        "id": 6825016262692,
+        "title": "Ozark Hellbender Sticker",
+        "body_html": "<p>According to the Missouri Department of Conservation; the origin of the name \u201chellbender\u201d is unclear. \u00a0The name 'hellbender' probably comes from the animal\u2019s odd look. Perhaps it was named by settlers who thought \"it was a creature from hell where it\u2019s bent on returning\". Another rendition says the undulating skin of a hellbender reminded observers of 'horrible tortures of the infernal regions'. In reality, it\u2019s a harmless aquatic salamander.</p>\n<p><span>Vernacular names include \"snot otter\", \"devil dog\", \"mud-devil\", \"grampus\", \"Allegheny alligator\", \u201clasagna sides\u201d, \"mud dog\u201d and \"leverian water newt\". \u00a0</span></p>\n<p><span>The Ozark hellbender is not a cute and cuddly creature, but Missouri and Arkansas should take pride in ensuring its long-term survival because they are found nowhere else on Earth.\u00a0 The Ozark Hellbender has been added to the Endangered Species List.</span></p>\n<p>6\" wide green, matte print finish with ivory\u00a0border.</p>\n<p>Made in the USA.</p>",
+        "vendor": "Mollyjogger",
+        "product_type": "Gear",
+        "created_at": "2021-11-18T12:06:11-06:00",
+        "handle": "ozark-hellbender-1",
+        "updated_at": "2026-04-06T05:26:31-05:00",
+        "published_at": "2021-11-18T12:08:30-06:00",
+        "template_suffix": "",
+        "published_scope": "web",
+        "tags": "gear",
+        "variants": [
+            {
+                "id": 39728400597028,
+                "product_id": 6825016262692,
+                "title": "Default Title",
+                "price": "3.00",
+                "sku": "",
+                "position": 1,
+                "inventory_policy": "deny",
+                "compare_at_price": "",
+                "fulfillment_service": "manual",
+                "inventory_management": "shopify",
+                "option1": "Default Title",
+                "option2": null,
+                "option3": null,
+                "created_at": "2021-11-18T12:06:11-06:00",
+                "updated_at": "2026-04-06T05:26:31-05:00",
+                "taxable": true,
+                "barcode": "",
+                "grams": 0,
+                "image_id": null,
+                "weight": 0.0,
+                "weight_unit": "lb",
+                "inventory_quantity": 41,
+                "old_inventory_quantity": 41,
+                "requires_shipping": true,
+                "price_currency": "USD",
+                "compare_at_price_currency": ""
+            }
+        ],
+        "options": [
+            {
+                "id": 8897965162532,
+                "product_id": 6825016262692,
+                "name": "Title",
+                "position": 1,
+                "values": [
+                    "Default Title"
+                ]
+            }
+        ],
+        "images": [
+            {
+                "id": 28945857183780,
+                "product_id": 6825016262692,
+                "position": 1,
+                "created_at": "2021-11-18T12:06:31-06:00",
+                "updated_at": "2021-11-18T12:06:32-06:00",
+                "alt": "Ozark Hellbender Salamander Sticker Ozarks National Scenic Riverways Canoe  Boat endangered",
+                "width": 1512,
+                "height": 1512,
+                "src": "https://cdn.shopify.com/s/files/1/0156/0327/products/MollyjoggerHellbenderSticker.jpg?v=1637258792",
+                "variant_ids": []
+            },
+            {
+                "id": 31260559376420,
+                "product_id": 6825016262692,
+                "position": 2,
+                "created_at": "2023-04-21T16:48:36-05:00",
+                "updated_at": "2023-04-21T16:48:43-05:00",
+                "alt": null,
+                "width": 1080,
+                "height": 1080,
+                "src": "https://cdn.shopify.com/s/files/1/0156/0327/products/Untitleddesign_3.jpg?v=1682113723",
+                "variant_ids": []
+            },
+            {
+                "id": 28945857937444,
+                "product_id": 6825016262692,
+                "position": 3,
+                "created_at": "2021-11-18T12:06:37-06:00",
+                "updated_at": "2023-04-21T16:48:43-05:00",
+                "alt": "Ozark Hellbender Salamander Sticker Ozarks National Scenic Riverways Canoe  ",
+                "width": 1512,
+                "height": 1512,
+                "src": "https://cdn.shopify.com/s/files/1/0156/0327/products/MollyjoggerHellbenderSticker_cdf4f3b2-2ef6-4bcb-a3d8-72f69604554a.jpg?v=1682113723",
+                "variant_ids": []
+            }
+        ],
+        "image": {
+            "id": 28945857183780,
+            "product_id": 6825016262692,
+            "position": 1,
+            "created_at": "2021-11-18T12:06:31-06:00",
+            "updated_at": "2021-11-18T12:06:32-06:00",
+            "alt": "Ozark Hellbender Salamander Sticker Ozarks National Scenic Riverways Canoe  Boat endangered",
+            "width": 1512,
+            "height": 1512,
+            "src": "https://cdn.shopify.com/s/files/1/0156/0327/products/MollyjoggerHellbenderSticker.jpg?v=1637258792",
+            "variant_ids": []
+        }
+    }
+}

@@ -25,7 +25,9 @@ export interface ShopifyVariant {
   option1: string | null;
   option2: string | null;
   option3: string | null;
-  available: boolean;
+  available?: boolean;
+  inventory_quantity?: number;
+  inventory_policy?: string;
   sku: string;
 }
 
@@ -88,6 +90,14 @@ export function normalizeShopifySearchProduct(raw: ShopifySearchProduct, currenc
   };
 }
 
+/** Check if a variant is available (handles both .available and .inventory_quantity) */
+function isVariantAvailable(v: ShopifyVariant): boolean {
+  if (v.available !== undefined) return v.available;
+  if (v.inventory_policy === "continue") return true; // sell when out of stock
+  if (v.inventory_quantity !== undefined) return v.inventory_quantity > 0;
+  return true; // assume available if no inventory info
+}
+
 /** Normalize full product detail → Product (from /products/handle.json) */
 export function normalizeShopifyProduct(raw: ShopifyProduct, currency?: string): Product {
   const resolvedCurrency = currency ?? detectShopifyCurrency();
@@ -105,7 +115,7 @@ export function normalizeShopifyProduct(raw: ShopifyProduct, currency?: string):
     currency: resolvedCurrency,
     sizes: sizeOption?.values ?? [],
     color: colorOption?.values[0] ?? "",
-    inStock: raw.variants.some((v) => v.available),
+    inStock: raw.variants.some(isVariantAvailable),
     imageUrl: raw.images[0]?.src,
     description: raw.body_html?.replace(/<[^>]*>/g, "").slice(0, 200) || undefined,
   };
@@ -154,7 +164,7 @@ export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
       const variantsList = (raw.variants ?? [])
         .map((v) => {
           const options = [v.option1, v.option2, v.option3].filter(Boolean).join(" / ");
-          const status = v.available ? "In stock" : "Out of stock";
+          const status = isVariantAvailable(v) ? "In stock" : "Out of stock";
           return `  - ${options || "Default"} — ${currency} ${parseFloat(v.price).toFixed(2)} (${status}) [variant_id: ${v.id}]`;
         })
         .join("\n");
@@ -198,7 +208,7 @@ export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
         return { content: [{ type: "text" as const, text: `"${size}" is not a valid option for ${raw.title}. Available: ${allOptions}` }] };
       }
 
-      const available = matching.filter((v) => v.available);
+      const available = matching.filter(isVariantAvailable);
       if (available.length === 0) {
         return { content: [{ type: "text" as const, text: `${raw.title} in "${size}" is out of stock.` }] };
       }
@@ -226,16 +236,16 @@ export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
       let variant = raw.variants.find(
         (v) => [v.option1, v.option2, v.option3].some(
           (opt) => opt?.toLowerCase() === size.toLowerCase(),
-        ) && v.available,
+        ) && isVariantAvailable(v),
       );
 
       // If size looks like a variant ID (numeric), match by ID
       if (!variant && /^\d+$/.test(size)) {
-        variant = raw.variants.find((v) => v.id === parseInt(size) && v.available);
+        variant = raw.variants.find((v) => v.id === parseInt(size) && isVariantAvailable(v));
       }
 
       // If only one variant (no options), use it
-      if (!variant && raw.variants.length === 1 && raw.variants[0].available) {
+      if (!variant && raw.variants.length === 1 && isVariantAvailable(raw.variants[0])) {
         variant = raw.variants[0];
       }
 
