@@ -140,8 +140,8 @@ export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
       if (inStock.length === 0) {
         return { content: [{ type: "text" as const, text: `No products found for "${query}" at ${storeName}.` }] };
       }
-      const list = inStock.map((p) => `- ${p.name} — ${p.currency} ${p.price.toFixed(2)} | Sizes: ${p.sizes.join(", ")}`).join("\n");
-      return { content: [{ type: "text" as const, text: `# Results for "${query}"\n\n${list}` }] };
+      const list = inStock.map((p) => `- ${p.name} (${p.id}) — ${p.currency} ${p.price.toFixed(2)}`).join("\n");
+      return { content: [{ type: "text" as const, text: `# Results for "${query}"\n\n${list}\n\nCall get_product with the product_id to see available options and add to cart.` }] };
     },
 
     get_product: (data) => async ({ product_id }: { product_id: string }) => {
@@ -178,8 +178,8 @@ export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
             (description ? `${description}\n\n` : "") +
             (optionsSummary ? `## Options\n${optionsSummary}\n\n` : "") +
             (hasVariants
-              ? `## Variants\n${variantsList}\n\nTo add to cart, use add_to_cart with the product_id "${product_id}" and specify the variant option (e.g. size or color).`
-              : `Price: ${currency} ${parseFloat(raw.variants[0]?.price ?? "0").toFixed(2)}\nIn stock: ${raw.variants[0]?.available ? "Yes" : "No"}`),
+              ? `## Available variants\n${variantsList}\n\nPresent these options to the user and ask which one they want. Then call add_to_cart with product_id "${product_id}" and the chosen option name as the size parameter.`
+              : `Price: ${currency} ${parseFloat(raw.variants[0]?.price ?? "0").toFixed(2)}\nIn stock: ${isVariantAvailable(raw.variants[0]) ? "Yes" : "No"}\n\nThis product has no variants. Call add_to_cart with product_id "${product_id}" and size "Default" to add it.`),
         }],
       };
     },

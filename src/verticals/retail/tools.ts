@@ -21,7 +21,7 @@ const search: ToolFactory<RetailData> = (data) => ({
 
 const product: ToolFactory<RetailData> = (data) => ({
   name: "get_product",
-  description: `Get detailed product information${storeLabel(data)} including all available variants (sizes, colors, prices, stock status). Always call this before add_to_cart to show the user their options.`,
+  description: `Get detailed product information${storeLabel(data)} including all available variants with options (size, color, material, etc.), prices, and stock status. Always call this before add_to_cart. Present the available in-stock options to the user and let them choose. Then add to cart immediately with their choice.`,
   input_schema: {
     type: "object",
     properties: {
@@ -46,12 +46,12 @@ const stock: ToolFactory<RetailData> = (data) => ({
 
 const cart: ToolFactory<RetailData> = (data) => ({
   name: "add_to_cart",
-  description: `Add a product to the shopping cart${storeLabel(data)}.`,
+  description: `Add a product to the shopping cart${storeLabel(data)}. Use the exact option name from get_product (e.g. "Sundown Brown", "Medium", "Default"). For simple products without variants, use "Default".`,
   input_schema: {
     type: "object",
     properties: {
-      product_id: { type: "string", description: "Product ID or handle" },
-      size: { type: "string", description: "Selected size" },
+      product_id: { type: "string", description: "Product ID or handle (from search results)" },
+      size: { type: "string", description: "The variant option name from get_product (e.g. 'Medium', 'Sundown Brown', 'Default')" },
       quantity: { type: "number", description: "Quantity (default 1)" },
     },
     required: ["product_id", "size"],
