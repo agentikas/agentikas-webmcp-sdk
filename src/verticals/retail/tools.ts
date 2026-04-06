@@ -9,11 +9,11 @@ const storeLabel = (data: any): string => storeName(data) ? ` in ${storeName(dat
 
 const search: ToolFactory<RetailData> = (data) => ({
   name: "search_products",
-  description: `Search products${storeLabel(data)}. Returns matching products with prices. After finding a product, always call get_product with its product_id to see available variants (sizes, colors) before adding to cart.`,
+  description: `Search products${storeLabel(data)}. Returns matching products with prices. IMPORTANT: The search engine is full-text, not AI — always translate the query to the store's catalog language (usually English) before searching. If 0 results, retry with the translated query. After finding a product, always call get_product with its product_id to see available variants (sizes, colors) before adding to cart.`,
   input_schema: {
     type: "object",
     properties: {
-      query: { type: "string", description: "Search query (product name, category, color, etc.)" },
+      query: { type: "string", description: "Search query in the store's catalog language (translate from user's language if needed)" },
     },
     required: ["query"],
   },
