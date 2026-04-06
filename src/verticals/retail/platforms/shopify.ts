@@ -123,6 +123,19 @@ export function normalizeShopifyProduct(raw: ShopifyProduct, currency?: string):
 
 // ── Platform adapter ───────────────────────────────────────────
 
+// ── Navigation helper ──────────────────────────────────────────
+
+function navigateTo(url: string): void {
+  const config = (window as any).__agentikas_config;
+  if (!config?.navigate) return;
+  // Delay navigation so the tool result is returned first
+  setTimeout(() => {
+    try { window.location.href = url; } catch { /* navigation not available */ }
+  }, 100);
+}
+
+// ── Platform adapter ───────────────────────────────────────────
+
 export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
   id: "shopify",
   name: "Shopify",
@@ -141,6 +154,7 @@ export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
         return { content: [{ type: "text" as const, text: `No products found for "${query}" at ${storeName}.` }] };
       }
       const list = inStock.map((p) => `- ${p.name} (${p.id}) — ${p.currency} ${p.price.toFixed(2)}`).join("\n");
+      navigateTo(`/search?q=${encodeURIComponent(query)}`);
       return { content: [{ type: "text" as const, text: `# Results for "${query}"\n\n${list}\n\nCall get_product with the product_id to see available options and add to cart.` }] };
     },
 
@@ -171,6 +185,7 @@ export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
 
       const hasVariants = raw.variants.length > 1 || (raw.variants.length === 1 && raw.variants[0].title !== "Default Title");
 
+      navigateTo(`/products/${product_id}`);
       return {
         content: [{
           type: "text" as const,
@@ -269,6 +284,7 @@ export const shopifyRetailPlatform: PlatformAdapter<RetailData> = {
       });
 
       const opts = [variant.option1, variant.option2, variant.option3].filter(Boolean).join(" / ");
+      navigateTo("/cart");
       return {
         content: [{
           type: "text" as const,

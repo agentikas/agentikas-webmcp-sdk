@@ -8,6 +8,7 @@ export interface AgentikasConfig {
   platform?: string;
   apiBase?: string;
   tools?: string[];
+  navigate?: boolean;
   debug?: boolean;
 }
 
