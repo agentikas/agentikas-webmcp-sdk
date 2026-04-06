@@ -9,7 +9,7 @@ const storeLabel = (data: any): string => storeName(data) ? ` in ${storeName(dat
 
 const search: ToolFactory<RetailData> = (data) => ({
   name: "search_products",
-  description: `Search products${storeLabel(data)}. Returns matching products with prices and available sizes.`,
+  description: `Search products${storeLabel(data)}. Returns matching products with prices. After finding a product, always call get_product with its product_id to see available variants (sizes, colors) before adding to cart.`,
   input_schema: {
     type: "object",
     properties: {
@@ -21,7 +21,7 @@ const search: ToolFactory<RetailData> = (data) => ({
 
 const product: ToolFactory<RetailData> = (data) => ({
   name: "get_product",
-  description: `Get detailed information about a product${storeLabel(data)}.`,
+  description: `Get detailed product information${storeLabel(data)} including all available variants (sizes, colors, prices, stock status). Always call this before add_to_cart to show the user their options.`,
   input_schema: {
     type: "object",
     properties: {
