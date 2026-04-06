@@ -201,3 +201,146 @@ This file serves as:
 - **Training data** for agents working on the SDK
 - **Documentation** of design decisions
 - **Proof** that every change was test-driven
+
+---
+
+## Backlog: prompts pendientes de testear
+
+### Nuevas plataformas
+
+```
+P01: "Haz que el SDK funcione en PrestaShop. Prueba en https://demo.prestashop.com"
+```
+- Capturar fixtures de la PrestaShop API
+- Detección: `window.prestashop`
+- APIs: `/api/products`, `/api/search`
+
+```
+P02: "Haz que el SDK funcione en BigCommerce. Prueba en una tienda real."
+```
+- Capturar fixtures de Storefront API
+- Detección: `window.BigCommerce`
+- APIs: `/api/storefront/products`, `/api/storefront/cart`
+
+```
+P03: "Haz que funcione en una web genérica que tenga schema.org Product en JSON-LD"
+```
+- Scrapear `<script type="application/ld+json">` del DOM
+- Normalizar schema.org Product → Product interface
+- No necesita API — todo está en el HTML
+
+### Edge cases en Shopify
+
+```
+P04: "Un producto de Shopify tiene 3 opciones: Size, Color y Material. Asegúrate que get_product muestre las 3 y add_to_cart las combine correctamente."
+```
+- Capturar fixture de producto con 3 opciones
+- Test: variant matching con option1 + option2 + option3
+
+```
+P05: "Un producto de Shopify tiene precios con descuento (compare_at_price). Muestra el precio original y el descuento."
+```
+- Capturar fixture con compare_at_price > 0
+- Test: normalizer extrae precio original y final
+
+```
+P06: "Buscar en Shopify devuelve productos en múltiples monedas. Asegúrate que la currency sea correcta."
+```
+- Probar en tienda con multi-currency activo
+- Test: currency viene de Shopify.currency.active, no hardcodeada
+
+```
+P07: "Un producto de Shopify está agotado pero permite backorders (inventory_policy: continue). El SDK debe permitir añadirlo al carrito."
+```
+- Fixture con inventory_quantity=0 pero inventory_policy="continue"
+- Test: isVariantAvailable devuelve true
+
+### Edge cases en Adobe Commerce EDS
+
+```
+P08: "Productos configurables en Adobe Commerce tienen variantes con precios distintos por talla. Muéstralos."
+```
+- Capturar fixture de ComplexProductView con priceRange
+- Test: normalizer usa priceRange.minimum
+
+```
+P09: "Una tienda Adobe Commerce tiene múltiples store views (idiomas). El SDK debe usar el store view correcto."
+```
+- Test: headers Magento-Store-View-Code se leen de configs.json
+
+```
+P10: "El endpoint de Catalog Service cambia en producción vs sandbox. Verifica que auto-detecta."
+```
+- Test: isSandbox flag se detecta correctamente
+- Test: usa endpoint correcto según flag
+
+### Nuevas verticales
+
+```
+P11: "Crea una vertical de hotel con tools: search_rooms, get_room, check_availability, book_room"
+```
+- TDD: definir tipos HotelData, Room
+- Fixtures: inventar datos realistas
+- Tests: tool factories, executors, lazy mode
+
+```
+P12: "Crea una vertical de servicios (peluquería, clínica) con tools: get_services, check_availability, book_appointment"
+```
+- Similar a restaurant pero con slots de tiempo
+- Fixtures con calendario de disponibilidad
+
+### Robustez y errores
+
+```
+P13: "El SDK debe funcionar cuando la API de Shopify devuelve un 429 (rate limit). Implementa retry con backoff."
+```
+- Test: mock fetch que devuelve 429, luego 200
+- Implementar: exponential backoff en gqlFetch / fetch
+
+```
+P14: "El SDK debe funcionar cuando la red falla temporalmente. Muestra un mensaje amigable en vez de crashear."
+```
+- Test: mock fetch que lanza TypeError (network error)
+- Test: executor devuelve ToolResult con mensaje de error, no throw
+
+```
+P15: "Un producto de Shopify tiene imágenes pero la CDN de Shopify está caída. El normalizer no debe crashear."
+```
+- Fixture con images: [] o images: null
+- Test: normalizer devuelve imageUrl undefined, no crash
+
+### Telemetría y analytics
+
+```
+P16: "Cada búsqueda que no devuelve resultados debe loguearse como evento de telemetría 'ai_search_no_results'."
+```
+- Test: search con 0 resultados → dataLayer.push con evento específico
+- Útil para el dashboard Pro (búsquedas fallidas)
+
+```
+P17: "Trackear qué agente IA invoca los tools (si se puede detectar del User-Agent o de la API)."
+```
+- Investigar si navigator.modelContext expone info del agente
+- Test: evento incluye agent_source si disponible
+
+### Performance
+
+```
+P18: "El SDK tarda >500ms en inicializar en una web lenta. Optimiza para que no bloquee."
+```
+- Medir: performance.now() antes y después de init
+- Test: init completa en <100ms (sin fetch)
+
+```
+P19: "Cachear resultados de búsqueda por 5 minutos para evitar llamadas repetidas."
+```
+- Test: segunda búsqueda con mismo query devuelve resultado cacheado sin fetch
+- Test: cache expira después de 5 minutos
+
+### Multi-idioma
+
+```
+P20: "Las descripciones de los tools deben adaptarse al idioma del store (no del browser)."
+```
+- Test: tool description en español cuando store es español
+- Investigar: ¿merece la pena? Los agentes IA entienden cualquier idioma
