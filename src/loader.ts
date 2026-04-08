@@ -18,6 +18,9 @@ import { shopifyRetailPlatform } from "./verticals/retail/platforms/shopify";
 import { woocommerceRetailPlatform } from "./verticals/retail/platforms/woocommerce";
 import { adobeRetailPlatform } from "./verticals/retail/platforms/adobe";
 import { adobeEdsRetailPlatform } from "./verticals/retail/platforms/adobe-eds";
+import { blog } from "./verticals/blog/tools";
+import { blogExecutors } from "./verticals/blog/executors";
+import { readBlogSchemaFromDOM } from "./verticals/blog/schema-reader";
 import type { AgentikasConfig } from "./types";
 
 declare global {
@@ -31,6 +34,7 @@ declare global {
 
 registerVertical(restaurant, restaurantExecutors, "agentikas");
 registerVertical(retail, retailExecutors, "agentikas");
+registerVertical(blog, blogExecutors, "agentikas");
 
 registerPlatform("retail", shopifyRetailPlatform);
 registerPlatform("retail", woocommerceRetailPlatform);
@@ -38,6 +42,7 @@ registerPlatform("retail", adobeEdsRetailPlatform);
 registerPlatform("retail", adobeRetailPlatform);
 registerPlatform("retail", { id: "generic", name: "Generic", executors: retailExecutors });
 registerPlatform("restaurant", { id: "generic", name: "Generic", executors: restaurantExecutors });
+registerPlatform("blog", { id: "generic", name: "Generic", executors: blogExecutors });
 
 // ── Detection rules ────────────────────────────────────────────
 
@@ -177,8 +182,41 @@ window.addEventListener("agentikas:data-ready", init);
 
 // Fallback: try on DOMContentLoaded (scenario 3: GTM, no preloaded data)
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", () => { init(); autoDetectBlog(); });
 } else if (!initialized) {
   // DOM already ready but config might come from GTM (slight delay)
-  setTimeout(init, 0);
+  setTimeout(() => { init(); autoDetectBlog(); }, 0);
+}
+
+// ── Blog auto-detection ───────────────────────────────────────
+// If no explicit config is set but the page has schema.org Blog/BlogPosting,
+// auto-initialize with the blog vertical using data from the DOM.
+
+function autoDetectBlog() {
+  if (initialized) return;
+
+  const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+  let hasBlog = false;
+  scripts.forEach((s) => {
+    try {
+      const data = JSON.parse(s.textContent ?? "");
+      const type = data["@type"];
+      if (type === "Blog" || type === "BlogPosting") hasBlog = true;
+    } catch {}
+  });
+
+  if (!hasBlog) return;
+
+  const blogData = readBlogSchemaFromDOM();
+  const blogSlug = blogData.blog.url?.split("//")[1]?.split(".")[0] ?? "blog";
+
+  window.__agentikas_config = {
+    businessId: blogSlug,
+    vertical: "blog",
+    platform: "generic",
+  };
+  window.__agentikas_data = blogData;
+
+  console.log("[Agentikas] Auto-detected blog from schema.org:", blogData.blog.name);
+  init();
 }
