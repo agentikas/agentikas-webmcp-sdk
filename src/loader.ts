@@ -14,10 +14,6 @@ import { restaurant } from "./verticals/restaurant/tools";
 import { restaurantExecutors } from "./verticals/restaurant/executors";
 import { retail } from "./verticals/retail/tools";
 import { retailExecutors } from "./verticals/retail/executors";
-import { shopifyRetailPlatform } from "./verticals/retail/platforms/shopify";
-import { woocommerceRetailPlatform } from "./verticals/retail/platforms/woocommerce";
-import { adobeRetailPlatform } from "./verticals/retail/platforms/adobe";
-import { adobeEdsRetailPlatform } from "./verticals/retail/platforms/adobe-eds";
 import { blog } from "./verticals/blog/tools";
 import { blogExecutors } from "./verticals/blog/executors";
 import { readBlogSchemaFromDOM } from "./verticals/blog/schema-reader";
@@ -36,40 +32,15 @@ registerVertical(restaurant, restaurantExecutors, "agentikas");
 registerVertical(retail, retailExecutors, "agentikas");
 registerVertical(blog, blogExecutors, "agentikas");
 
-registerPlatform("retail", shopifyRetailPlatform);
-registerPlatform("retail", woocommerceRetailPlatform);
-registerPlatform("retail", adobeEdsRetailPlatform);
-registerPlatform("retail", adobeRetailPlatform);
+// Platform adapters loaded separately (see agentikas-webmcp-adapters)
 registerPlatform("retail", { id: "generic", name: "Generic", executors: retailExecutors });
 registerPlatform("restaurant", { id: "generic", name: "Generic", executors: restaurantExecutors });
 registerPlatform("blog", { id: "generic", name: "Generic", executors: blogExecutors });
 
 // ── Detection rules ────────────────────────────────────────────
-
-registerDetectionRule({ platformId: "shopify", detect: () => !!(window as any).Shopify });
-registerDetectionRule({ platformId: "woocommerce", detect: () => !!document.querySelector(".woocommerce, .wc-block-grid") });
-registerDetectionRule({
-  platformId: "adobe-eds",
-  detect: () => {
-    try {
-      const importMap = document.querySelector('script[type="importmap"]');
-      if (importMap?.textContent?.includes("@dropins/")) return true;
-      if (document.querySelector('meta[name="commerce-endpoint"]')) return true;
-      const host = window.location.hostname;
-      if (host.includes(".aem.live") || host.includes(".hlx.live") || host.includes(".aem.page")) return true;
-      return false;
-    } catch { return false; }
-  },
-});
-registerDetectionRule({
-  platformId: "adobe",
-  detect: () => {
-    try {
-      return typeof (window as any).require === "function" &&
-        !!(window as any).require.s?.contexts?._.config?.paths?.["Magento_Ui"];
-    } catch { return false; }
-  },
-});
+// Platform-specific detection rules (Shopify, WooCommerce, Adobe)
+// are loaded from agentikas-webmcp-adapters. The core SDK only
+// includes generic detection.
 
 // ── Initialization ─────────────────────────────────────────────
 
