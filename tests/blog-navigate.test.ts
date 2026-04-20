@@ -124,6 +124,47 @@ describe("navigateTo", () => {
     navigateTo("/es/webmcp-blog");
     expect(hrefSetter).toHaveBeenCalledWith("/es/webmcp-blog");
   });
+
+  it("dispatches an 'agentikas:navigate' event before falling back to location.href", () => {
+    const detail: any[] = [];
+    const handler = (e: Event) => detail.push((e as CustomEvent).detail);
+    window.addEventListener("agentikas:navigate", handler);
+    try {
+      navigateTo("/es/some-post");
+    } finally {
+      window.removeEventListener("agentikas:navigate", handler);
+    }
+    expect(detail).toEqual([{ url: "/es/some-post" }]);
+    expect(hrefSetter).toHaveBeenCalledWith("/es/some-post");
+  });
+
+  it("skips location.href when a listener calls preventDefault on the event", () => {
+    const handler = (e: Event) => e.preventDefault();
+    window.addEventListener("agentikas:navigate", handler);
+    try {
+      navigateTo("/es/handled-by-spa-router");
+    } finally {
+      window.removeEventListener("agentikas:navigate", handler);
+    }
+    expect(hrefSetter).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch the event when navigate is disabled", () => {
+    (window as any).__agentikas_config = {
+      businessId: "test",
+      vertical: "blog",
+      navigate: false,
+    };
+    const fired = vi.fn();
+    window.addEventListener("agentikas:navigate", fired);
+    try {
+      navigateTo("/es/foo");
+    } finally {
+      window.removeEventListener("agentikas:navigate", fired);
+    }
+    expect(fired).not.toHaveBeenCalled();
+    expect(hrefSetter).not.toHaveBeenCalled();
+  });
 });
 
 describe("getBasePath", () => {

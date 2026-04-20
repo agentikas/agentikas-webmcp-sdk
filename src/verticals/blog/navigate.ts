@@ -92,6 +92,18 @@ export function navigateTo(url: string): void {
   const cfg = (window as unknown as { __agentikas_config?: { navigate?: boolean } })
     .__agentikas_config;
   if (cfg?.navigate === false) return;
+
+  // Dispatch a cancelable event so host apps can plug in their SPA router
+  // (e.g. Next's `router.push`) for instant transitions + working back/
+  // forward buttons. If no listener calls preventDefault(), we fall back
+  // to a hard navigation, which is the correct behaviour for static sites.
+  const event = new CustomEvent("agentikas:navigate", {
+    detail: { url },
+    cancelable: true,
+  });
+  window.dispatchEvent(event);
+  if (event.defaultPrevented) return;
+
   window.location.href = url;
 }
 
