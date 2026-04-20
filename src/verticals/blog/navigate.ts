@@ -12,8 +12,21 @@ export function getCurrentLocale(): string {
   return first && LOCALE_PATTERN.test(first) ? first : DEFAULT_LOCALE;
 }
 
+/** Reads AgentikasConfig.basePath and normalises it to a leading "/" + no
+ *  trailing "/". Returns empty string when unset — keeping URLs identical
+ *  to the no-basePath baseline. */
+export function getBasePath(): string {
+  if (typeof window === "undefined") return "";
+  const cfg = (window as unknown as { __agentikas_config?: { basePath?: string } })
+    .__agentikas_config;
+  const raw = cfg?.basePath ?? "";
+  if (!raw) return "";
+  const withLeading = raw.startsWith("/") ? raw : `/${raw}`;
+  return withLeading.endsWith("/") ? withLeading.slice(0, -1) : withLeading;
+}
+
 export function buildHomeUrl(locale: string = getCurrentLocale()): string {
-  return `/${locale}`;
+  return `/${locale}${getBasePath()}`;
 }
 
 export interface SearchParams {
@@ -34,11 +47,12 @@ export function buildSearchUrl(
     }
   }
   const qs = search.toString();
-  return qs ? `/${locale}/search?${qs}` : `/${locale}/search`;
+  const base = `/${locale}${getBasePath()}/search`;
+  return qs ? `${base}?${qs}` : base;
 }
 
 export function buildPostUrl(slug: string, locale: string = getCurrentLocale()): string {
-  return `/${locale}/${slug}`;
+  return `/${locale}${getBasePath()}/${slug}`;
 }
 
 export function navigateTo(url: string): void {
@@ -47,4 +61,14 @@ export function navigateTo(url: string): void {
     .__agentikas_config;
   if (cfg?.navigate === false) return;
   window.location.href = url;
+}
+
+/** True when `navigateTo` would actually change window.location. Used by
+ *  executors to tailor the "Opened: ..." line in tool results so the agent
+ *  doesn't lie about having navigated when the consumer opted out. */
+export function isNavigateEnabled(): boolean {
+  if (typeof window === "undefined") return false;
+  const cfg = (window as unknown as { __agentikas_config?: { navigate?: boolean } })
+    .__agentikas_config;
+  return cfg?.navigate !== false;
 }

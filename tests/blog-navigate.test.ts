@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   getCurrentLocale,
+  getBasePath,
   buildHomeUrl,
   buildSearchUrl,
   buildPostUrl,
   navigateTo,
+  isNavigateEnabled,
 } from "../src/verticals/blog/navigate";
 
 describe("getCurrentLocale", () => {
@@ -121,5 +123,117 @@ describe("navigateTo", () => {
     (window as any).__agentikas_config = { businessId: "test", vertical: "blog" };
     navigateTo("/es/webmcp-blog");
     expect(hrefSetter).toHaveBeenCalledWith("/es/webmcp-blog");
+  });
+});
+
+describe("getBasePath", () => {
+  afterEach(() => {
+    delete (window as any).__agentikas_config;
+  });
+
+  it("returns empty string when config or basePath is unset", () => {
+    expect(getBasePath()).toBe("");
+    (window as any).__agentikas_config = { businessId: "x", vertical: "blog" };
+    expect(getBasePath()).toBe("");
+  });
+
+  it("normalises missing leading slash", () => {
+    (window as any).__agentikas_config = {
+      businessId: "x",
+      vertical: "blog",
+      basePath: "blog",
+    };
+    expect(getBasePath()).toBe("/blog");
+  });
+
+  it("trims a trailing slash", () => {
+    (window as any).__agentikas_config = {
+      businessId: "x",
+      vertical: "blog",
+      basePath: "/blog/",
+    };
+    expect(getBasePath()).toBe("/blog");
+  });
+
+  it("leaves a properly-formed basePath untouched", () => {
+    (window as any).__agentikas_config = {
+      businessId: "x",
+      vertical: "blog",
+      basePath: "/blog",
+    };
+    expect(getBasePath()).toBe("/blog");
+  });
+});
+
+describe("URL builders honour basePath", () => {
+  afterEach(() => {
+    delete (window as any).__agentikas_config;
+  });
+
+  it("buildHomeUrl prepends basePath after the locale", () => {
+    (window as any).__agentikas_config = {
+      businessId: "x",
+      vertical: "blog",
+      basePath: "/blog",
+    };
+    expect(buildHomeUrl("en")).toBe("/en/blog");
+  });
+
+  it("buildSearchUrl prepends basePath and preserves the querystring", () => {
+    (window as any).__agentikas_config = {
+      businessId: "x",
+      vertical: "blog",
+      basePath: "/blog",
+    };
+    expect(buildSearchUrl({ q: "ia" }, "es")).toBe("/es/blog/search?q=ia");
+    expect(buildSearchUrl({}, "es")).toBe("/es/blog/search");
+  });
+
+  it("buildPostUrl prepends basePath before the slug", () => {
+    (window as any).__agentikas_config = {
+      businessId: "x",
+      vertical: "blog",
+      basePath: "/blog",
+    };
+    expect(buildPostUrl("my-post", "en")).toBe("/en/blog/my-post");
+  });
+
+  it("no basePath → URLs unchanged (backwards compat)", () => {
+    expect(buildHomeUrl("es")).toBe("/es");
+    expect(buildSearchUrl({ q: "x" }, "es")).toBe("/es/search?q=x");
+    expect(buildPostUrl("foo", "en")).toBe("/en/foo");
+  });
+});
+
+describe("isNavigateEnabled", () => {
+  afterEach(() => {
+    delete (window as any).__agentikas_config;
+  });
+
+  it("returns true by default (no config)", () => {
+    expect(isNavigateEnabled()).toBe(true);
+  });
+
+  it("returns true when config.navigate is unset", () => {
+    (window as any).__agentikas_config = { businessId: "x", vertical: "blog" };
+    expect(isNavigateEnabled()).toBe(true);
+  });
+
+  it("returns true when config.navigate is true", () => {
+    (window as any).__agentikas_config = {
+      businessId: "x",
+      vertical: "blog",
+      navigate: true,
+    };
+    expect(isNavigateEnabled()).toBe(true);
+  });
+
+  it("returns false only when config.navigate is explicitly false", () => {
+    (window as any).__agentikas_config = {
+      businessId: "x",
+      vertical: "blog",
+      navigate: false,
+    };
+    expect(isNavigateEnabled()).toBe(false);
   });
 });

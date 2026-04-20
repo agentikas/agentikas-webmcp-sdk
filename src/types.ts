@@ -9,6 +9,11 @@ export interface AgentikasConfig {
   apiBase?: string;
   tools?: string[];
   navigate?: boolean;
+  /** Path segment prepended to every navigation URL, right after the locale.
+   *  Use when the blog lives under a sub-route (e.g. `/blog` on a marketing
+   *  site) so tools navigate to `/{locale}{basePath}/search?...` instead of
+   *  `/{locale}/search?...`. Leading `/` recommended; trailing `/` trimmed. */
+  basePath?: string;
   debug?: boolean;
 }
 

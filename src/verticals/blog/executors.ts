@@ -6,7 +6,13 @@
 
 import type { ExecutorMap, ToolResult } from "../../types";
 import { loadFeed, discoverFeedUrl } from "./feed-loader";
-import { buildHomeUrl, buildPostUrl, buildSearchUrl, navigateTo } from "./navigate";
+import {
+  buildHomeUrl,
+  buildPostUrl,
+  buildSearchUrl,
+  navigateTo,
+  isNavigateEnabled,
+} from "./navigate";
 import type { FeedEntry } from "./feed-parser";
 import {
   readPostMetadata,
@@ -26,6 +32,13 @@ const DEFAULT_SEARCH_LIMIT = 20;
 
 function text(text: string): ToolResult {
   return { content: [{ type: "text" as const, text }] };
+}
+
+/** "Opened: …" line for tool output. Suppressed when navigation is
+ *  disabled via config so the agent doesn't claim to have navigated when
+ *  it hasn't. */
+function navHint(url: string, prefix = "\n\nOpened: "): string {
+  return isNavigateEnabled() ? `${prefix}${url}` : "";
 }
 
 function slugFromEntry(entry: FeedEntry): string {
@@ -52,7 +65,7 @@ function summarizePostList(entries: FeedEntry[], meta: { total: number; navigate
     ? `Found ${entries.length} post(s):`
     : `Found ${meta.total} post(s), showing ${entries.length}:`;
   const body = entries.map(summarizeEntry).join("\n\n");
-  const footer = meta.navigatedTo ? `\n\nOpened: ${meta.navigatedTo}` : "";
+  const footer = meta.navigatedTo ? navHint(meta.navigatedTo) : "";
   return `${header}\n\n${body}${footer}`;
 }
 
@@ -112,12 +125,12 @@ export const blogExecutors: ExecutorMap<NoData> = {
     navigateTo(target);
 
     if (matches.length === 0) {
-      return text(`No posts match "${query}".\n\nOpened: ${target}`);
+      return text(`No posts match "${query}".${navHint(target)}`);
     }
     return text(
       `Found ${matches.length} post(s) matching "${query}":\n\n` +
         matches.map(summarizeEntry).join("\n\n") +
-        `\n\nOpened: ${target}`,
+        navHint(target),
     );
   },
 
@@ -150,7 +163,7 @@ export const blogExecutors: ExecutorMap<NoData> = {
     const target = buildPostUrl(slug);
     navigateTo(target);
     return text(
-      `Latest post:\n\n${summarizeEntry(latest)}\n\nOpened: ${target}`,
+      `Latest post:\n\n${summarizeEntry(latest)}${navHint(target)}`,
     );
   },
 
@@ -167,10 +180,10 @@ export const blogExecutors: ExecutorMap<NoData> = {
     navigateTo(target);
 
     if (matches.length === 0) {
-      return text(`No posts tagged "${tag}".\n\nOpened: ${target}`);
+      return text(`No posts tagged "${tag}".${navHint(target)}`);
     }
     return text(
-      `Posts tagged "${tag}":\n\n${matches.map(summarizeEntry).join("\n\n")}\n\nOpened: ${target}`,
+      `Posts tagged "${tag}":\n\n${matches.map(summarizeEntry).join("\n\n")}${navHint(target)}`,
     );
   },
 
@@ -184,7 +197,7 @@ export const blogExecutors: ExecutorMap<NoData> = {
       : order === "trending" ? `${home}?sort=likes`
       : home;
     navigateTo(target);
-    return text(`Sort order set to "${order}". Opened: ${target}`);
+    return text(`Sort order set to "${order}".${navHint(target, " Opened: ")}`);
   },
 
   open_post: () => async (args: { slug: string }) => {
@@ -197,7 +210,7 @@ export const blogExecutors: ExecutorMap<NoData> = {
 
     const target = buildPostUrl(slug);
     navigateTo(target);
-    return text(`${summarizeEntry(match)}\n\nOpened: ${target}`);
+    return text(`${summarizeEntry(match)}${navHint(target)}`);
   },
 
   // ── Post-detail tools ─────────────────────────────────────────────

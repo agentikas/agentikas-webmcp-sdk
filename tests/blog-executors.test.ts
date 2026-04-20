@@ -244,4 +244,61 @@ describe("opt-out via config.navigate=false", () => {
     expect(result.content[0].text).toContain("Declarar WebMCP");
     expect(hrefSpy).not.toHaveBeenCalled();
   });
+
+  it("suppresses the 'Opened: ...' line when navigation is disabled", async () => {
+    (window as any).__agentikas_config = {
+      businessId: "test",
+      vertical: "blog",
+      navigate: false,
+    };
+    const run = blogExecutors.search_posts(undefined);
+    const result = await run({ query: "webmcp" });
+    expect(result.content[0].text).not.toContain("Opened:");
+  });
+});
+
+describe("basePath routing", () => {
+  it("list_posts navigates to /{locale}{basePath} when no filters", async () => {
+    (window as any).__agentikas_config = {
+      businessId: "landing",
+      vertical: "blog",
+      basePath: "/blog",
+    };
+    const run = blogExecutors.list_posts(undefined);
+    await run({});
+    expect(hrefSpy).toHaveBeenCalledWith("/es/blog");
+  });
+
+  it("search_posts navigates to /{locale}{basePath}/search?...", async () => {
+    (window as any).__agentikas_config = {
+      businessId: "landing",
+      vertical: "blog",
+      basePath: "/blog",
+    };
+    const run = blogExecutors.search_posts(undefined);
+    await run({ query: "webmcp" });
+    expect(hrefSpy).toHaveBeenCalledWith("/es/blog/search?q=webmcp");
+  });
+
+  it("open_post navigates to /{locale}{basePath}/{slug}", async () => {
+    (window as any).__agentikas_config = {
+      businessId: "landing",
+      vertical: "blog",
+      basePath: "/blog",
+    };
+    const run = blogExecutors.open_post(undefined);
+    await run({ slug: "gtm-loader-distribution" });
+    expect(hrefSpy).toHaveBeenCalledWith("/es/blog/gtm-loader-distribution");
+  });
+
+  it("get_latest_post navigates with basePath applied", async () => {
+    (window as any).__agentikas_config = {
+      businessId: "landing",
+      vertical: "blog",
+      basePath: "/blog",
+    };
+    const run = blogExecutors.get_latest_post(undefined);
+    await run({});
+    expect(hrefSpy).toHaveBeenCalledWith("/es/blog/webmcp-blog-10-min");
+  });
 });

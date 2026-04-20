@@ -10,6 +10,8 @@ export {
   buildSearchUrl,
   buildPostUrl,
   getCurrentLocale,
+  getBasePath,
+  isNavigateEnabled,
   type SearchParams,
 } from "./navigate";
 export {
