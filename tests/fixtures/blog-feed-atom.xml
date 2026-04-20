@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Agentikas Labs</title>
+  <subtitle>Notas sobre la web agéntica</subtitle>
+  <id>https://agentikas.blog.agentikas.ai/es/feed.xml</id>
+  <link rel="self" href="https://agentikas.blog.agentikas.ai/es/feed.xml"/>
+  <link href="https://agentikas.blog.agentikas.ai/es"/>
+  <updated>2026-04-15T10:00:00Z</updated>
+  <author><name>Agentikas Labs</name></author>
+  <entry>
+    <id>https://agentikas.blog.agentikas.ai/es/webmcp-blog-10-min</id>
+    <title>Declarar WebMCP sobre tu blog en 10 minutos</title>
+    <link href="https://agentikas.blog.agentikas.ai/es/webmcp-blog-10-min"/>
+    <published>2026-04-15T10:00:00Z</published>
+    <updated>2026-04-15T10:00:00Z</updated>
+    <author><name>Salva</name></author>
+    <category term="webmcp"/>
+    <category term="tutorial"/>
+    <summary>El 80% de las tools de un blog se reducen a exponer JSON-LD, RSS y DOM.</summary>
+    <content type="html">&lt;p&gt;Contenido completo del post en HTML. Con &amp;amp; y &lt;em&gt;énfasis&lt;/em&gt;.&lt;/p&gt;</content>
+  </entry>
+  <entry>
+    <id>https://agentikas.blog.agentikas.ai/es/gtm-loader-distribution</id>
+    <title>Por qué el GTM loader es la mejor vía de distribución</title>
+    <link href="https://agentikas.blog.agentikas.ai/es/gtm-loader-distribution"/>
+    <published>2026-04-08T09:00:00Z</published>
+    <updated>2026-04-08T09:00:00Z</updated>
+    <author><name>Marta</name></author>
+    <category term="distribution"/>
+    <category term="gtm"/>
+    <summary>Eliminar la dependencia del desarrollador abre un canal nuevo.</summary>
+  </entry>
+  <entry>
+    <id>https://agentikas.blog.agentikas.ai/es/sin-tags</id>
+    <title>Post sin tags ni autor explícito</title>
+    <link href="https://agentikas.blog.agentikas.ai/es/sin-tags"/>
+    <published>2026-03-20T12:00:00Z</published>
+    <updated>2026-03-21T08:30:00Z</updated>
+  </entry>
+</feed>

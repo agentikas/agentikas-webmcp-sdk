@@ -160,34 +160,57 @@ if (document.readyState === "loading") {
 }
 
 // ── Blog auto-detection ───────────────────────────────────────
-// If no explicit config is set but the page has schema.org Blog/BlogPosting,
-// auto-initialize with the blog vertical using data from the DOM.
+// If no explicit config is set but the page is clearly a blog (schema.org
+// Blog/BlogPosting OR an Atom feed discovery link), auto-initialize with
+// the blog vertical. The new feed-backed executors don't need preloaded
+// data — they fetch /feed.xml on demand — so the schema.org data path is
+// now an optimization (populates __agentikas_data when available), not a
+// requirement.
 
 function autoDetectBlog() {
   if (initialized) return;
 
   const scripts = document.querySelectorAll('script[type="application/ld+json"]');
-  let hasBlog = false;
+  let hasSchema = false;
   scripts.forEach((s) => {
     try {
       const data = JSON.parse(s.textContent ?? "");
       const type = data["@type"];
-      if (type === "Blog" || type === "BlogPosting") hasBlog = true;
+      if (type === "Blog" || type === "BlogPosting") hasSchema = true;
     } catch {}
   });
 
-  if (!hasBlog) return;
+  const hasAtomFeed = !!document.querySelector(
+    'link[rel="alternate"][type="application/atom+xml"]',
+  );
 
-  const blogData = readBlogSchemaFromDOM();
-  const blogSlug = blogData.blog.url?.split("//")[1]?.split(".")[0] ?? "blog";
+  if (!hasSchema && !hasAtomFeed) return;
+
+  const blogData = hasSchema ? readBlogSchemaFromDOM() : null;
+  const slugFromFeed = (() => {
+    const link = document.querySelector<HTMLLinkElement>(
+      'link[rel="alternate"][type="application/atom+xml"]',
+    );
+    const href = link?.href ?? "";
+    try {
+      return new URL(href, document.baseURI).hostname.split(".")[0] || "blog";
+    } catch {
+      return "blog";
+    }
+  })();
+  const blogSlug =
+    blogData?.blog.url?.split("//")[1]?.split(".")[0] ?? slugFromFeed;
 
   window.__agentikas_config = {
     businessId: blogSlug,
     vertical: "blog",
     platform: "generic",
   };
-  window.__agentikas_data = blogData;
+  if (blogData) window.__agentikas_data = blogData;
 
-  console.log("[Agentikas] Auto-detected blog from schema.org:", blogData.blog.name);
+  console.log(
+    `[Agentikas] Auto-detected blog (${hasSchema ? "schema.org" : "Atom feed"}):`,
+    blogData?.blog.name ?? blogSlug,
+  );
   init();
 }
