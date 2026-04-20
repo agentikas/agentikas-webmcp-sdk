@@ -129,15 +129,22 @@ describe("navigateTo", () => {
 describe("getBasePath", () => {
   afterEach(() => {
     delete (window as any).__agentikas_config;
+    document.head.replaceChildren();
   });
 
-  it("returns empty string when config or basePath is unset", () => {
-    expect(getBasePath()).toBe("");
-    (window as any).__agentikas_config = { businessId: "x", vertical: "blog" };
+  function addFeedLink(href: string) {
+    const link = document.createElement("link");
+    link.setAttribute("rel", "alternate");
+    link.setAttribute("type", "application/atom+xml");
+    link.setAttribute("href", href);
+    document.head.appendChild(link);
+  }
+
+  it("returns empty string when neither config nor feed link is set", () => {
     expect(getBasePath()).toBe("");
   });
 
-  it("normalises missing leading slash", () => {
+  it("normalises missing leading slash from explicit config", () => {
     (window as any).__agentikas_config = {
       businessId: "x",
       vertical: "blog",
@@ -146,7 +153,7 @@ describe("getBasePath", () => {
     expect(getBasePath()).toBe("/blog");
   });
 
-  it("trims a trailing slash", () => {
+  it("trims a trailing slash from explicit config", () => {
     (window as any).__agentikas_config = {
       businessId: "x",
       vertical: "blog",
@@ -155,13 +162,43 @@ describe("getBasePath", () => {
     expect(getBasePath()).toBe("/blog");
   });
 
-  it("leaves a properly-formed basePath untouched", () => {
+  it("leaves a properly-formed explicit basePath untouched", () => {
     (window as any).__agentikas_config = {
       businessId: "x",
       vertical: "blog",
       basePath: "/blog",
     };
     expect(getBasePath()).toBe("/blog");
+  });
+
+  it("explicit empty string in config overrides feed-derivation to root", () => {
+    addFeedLink("/en/blog/feed.xml");
+    (window as any).__agentikas_config = {
+      businessId: "x",
+      vertical: "blog",
+      basePath: "",
+    };
+    expect(getBasePath()).toBe("");
+  });
+
+  it("auto-derives basePath from the feed link when config has none", () => {
+    addFeedLink("/en/blog/feed.xml");
+    expect(getBasePath()).toBe("/blog");
+  });
+
+  it("auto-derives multi-segment basePath from the feed link", () => {
+    addFeedLink("/en/site/blog/feed.xml");
+    expect(getBasePath()).toBe("/site/blog");
+  });
+
+  it("returns '' when feed sits at /{locale}/feed.xml (root mount)", () => {
+    addFeedLink("/es/feed.xml");
+    expect(getBasePath()).toBe("");
+  });
+
+  it("ignores a link that does not end in /feed.xml", () => {
+    addFeedLink("/en/blog/other.xml");
+    expect(getBasePath()).toBe("");
   });
 });
 

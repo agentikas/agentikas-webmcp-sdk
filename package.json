@@ -1,6 +1,6 @@
 {
   "name": "@agentikas/webmcp-sdk",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "description": "Agentikas WebMCP SDK — Make any website visible to AI agents",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

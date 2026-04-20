@@ -12,17 +12,49 @@ export function getCurrentLocale(): string {
   return first && LOCALE_PATTERN.test(first) ? first : DEFAULT_LOCALE;
 }
 
-/** Reads AgentikasConfig.basePath and normalises it to a leading "/" + no
- *  trailing "/". Returns empty string when unset — keeping URLs identical
- *  to the no-basePath baseline. */
+function normalisePath(raw: string): string {
+  if (!raw) return "";
+  const withLeading = raw.startsWith("/") ? raw : `/${raw}`;
+  return withLeading.endsWith("/") ? withLeading.slice(0, -1) : withLeading;
+}
+
+/** Derive basePath from the Atom feed discovery link. The feed lives at
+ *  `/{locale}{basePath}/feed.xml` by convention, so whatever segments sit
+ *  between the locale and `feed.xml` ARE the basePath. Returns "" when the
+ *  link is missing or the path doesn't match the convention. */
+function basePathFromFeed(): string {
+  if (typeof document === "undefined") return "";
+  const link = document.querySelector<HTMLLinkElement>(
+    'link[rel="alternate"][type="application/atom+xml"]',
+  );
+  if (!link?.href) return "";
+  try {
+    const pathname = new URL(link.href).pathname;
+    const segments = pathname.split("/").filter(Boolean);
+    const last = segments[segments.length - 1];
+    if (last !== "feed.xml") return "";
+    const middle = segments.slice(1, -1);
+    return middle.length > 0 ? `/${middle.join("/")}` : "";
+  } catch {
+    return "";
+  }
+}
+
+/** Resolve the navigation basePath. Priority: explicit AgentikasConfig
+ *  override → auto-derive from the Atom feed link → empty (root-mounted).
+ *
+ *  Auto-deriving means surfaces like `agentikas.ai/en/blog` need no inline
+ *  config: the feed URL (`/en/blog/feed.xml`) already encodes the sub-route,
+ *  and Next's Script component cannot reliably inject inline config before
+ *  an async CDN script executes from a nested layout. */
 export function getBasePath(): string {
   if (typeof window === "undefined") return "";
   const cfg = (window as unknown as { __agentikas_config?: { basePath?: string } })
     .__agentikas_config;
-  const raw = cfg?.basePath ?? "";
-  if (!raw) return "";
-  const withLeading = raw.startsWith("/") ? raw : `/${raw}`;
-  return withLeading.endsWith("/") ? withLeading.slice(0, -1) : withLeading;
+  if (cfg?.basePath !== undefined) {
+    return normalisePath(cfg.basePath);
+  }
+  return basePathFromFeed();
 }
 
 export function buildHomeUrl(locale: string = getCurrentLocale()): string {
